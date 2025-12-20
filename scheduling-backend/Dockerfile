@@ -16,4 +16,5 @@ CMD ["sh", "-c", "ruff check src tests && pytest -v --cov=scheduling --cov-repor
 FROM base AS production
 RUN useradd --create-home --shell /bin/bash appuser
 USER appuser
-CMD ["python", "-m", "scheduling"]
+EXPOSE 8000
+CMD ["uvicorn", "scheduling.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
