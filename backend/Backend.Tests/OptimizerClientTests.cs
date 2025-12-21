@@ -1,5 +1,6 @@
 using Backend.Api.Clients.Generated;
 using Backend.Api.Controllers;
+using Backend.Api.Data;
 using Backend.Api.Entities;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,23 +9,49 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
-public class OptimizerClientTests
+[Collection("Postgres")]
+public class OptimizerClientTests : IAsyncLifetime
 {
+    private readonly PostgresTestFixture _fixture;
+    private AppDbContext _context = null!;
+
+    public OptimizerClientTests(PostgresTestFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public Task InitializeAsync()
+    {
+        _context = _fixture.CreateDbContext();
+        return Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        // Clean up test data
+        _context.ShiftAssignments.RemoveRange(_context.ShiftAssignments);
+        _context.EmployeePreferences.RemoveRange(_context.EmployeePreferences);
+        _context.Shifts.RemoveRange(_context.Shifts);
+        _context.ShiftSchedules.RemoveRange(_context.ShiftSchedules);
+        _context.Employees.RemoveRange(_context.Employees);
+        await _context.SaveChangesAsync();
+        await _context.DisposeAsync();
+    }
+
     [Fact]
     public async Task Finalize_WithMockedOptimizer_ReturnsScheduleWithAssignments()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
         var logger = NullLogger<SchedulesController>.Instance;
-        var controller = new SchedulesController(context, optimizerClient, logger);
+        var controller = new SchedulesController(_context, optimizerClient, logger);
 
         // Create employees
         var employee1 = new Employee
         {
             Id = Guid.NewGuid(),
             Name = "Alice",
-            Email = "alice@example.com",
+            Email = $"alice-{Guid.NewGuid()}@example.com",
             Abilities = ["bartender"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -33,12 +60,12 @@ public class OptimizerClientTests
         {
             Id = Guid.NewGuid(),
             Name = "Bob",
-            Email = "bob@example.com",
+            Email = $"bob-{Guid.NewGuid()}@example.com",
             Abilities = ["bartender"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Employees.AddRange(employee1, employee2);
+        _context.Employees.AddRange(employee1, employee2);
 
         // Create schedule
         var schedule = new ShiftSchedule
@@ -50,7 +77,7 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
+        _context.ShiftSchedules.Add(schedule);
 
         // Create shifts
         var shift1 = new Shift
@@ -75,8 +102,8 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Shifts.AddRange(shift1, shift2);
-        await context.SaveChangesAsync();
+        _context.Shifts.AddRange(shift1, shift2);
+        await _context.SaveChangesAsync();
 
         // Mock optimizer to return a solution with assignments
         var mockResponse = new OptimizeResponse
@@ -118,8 +145,8 @@ public class OptimizerClientTests
         okResult.Should().NotBeNull();
         okResult!.Status.Should().Be(ScheduleStatus.Finalized);
 
-        var assignments = await context.ShiftAssignments
-            .Where(a => context.Shifts.Where(s => s.ShiftScheduleId == schedule.Id).Select(s => s.Id).Contains(a.ShiftId))
+        var assignments = await _context.ShiftAssignments
+            .Where(a => _context.Shifts.Where(s => s.ShiftScheduleId == schedule.Id).Select(s => s.Id).Contains(a.ShiftId))
             .ToListAsync();
         assignments.Should().HaveCount(2);
         assignments.Should().Contain(a => a.ShiftId == shift1.Id && a.EmployeeId == employee1.Id);
@@ -130,17 +157,16 @@ public class OptimizerClientTests
     public async Task Finalize_WithMockedOptimizer_ReturnsMultipleSolutions()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
         var logger = NullLogger<SchedulesController>.Instance;
-        var controller = new SchedulesController(context, optimizerClient, logger);
+        var controller = new SchedulesController(_context, optimizerClient, logger);
 
         // Create employees
         var employee1 = new Employee
         {
             Id = Guid.NewGuid(),
             Name = "Alice",
-            Email = "alice@example.com",
+            Email = $"alice-{Guid.NewGuid()}@example.com",
             Abilities = ["bartender"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -149,12 +175,12 @@ public class OptimizerClientTests
         {
             Id = Guid.NewGuid(),
             Name = "Bob",
-            Email = "bob@example.com",
+            Email = $"bob-{Guid.NewGuid()}@example.com",
             Abilities = ["bartender"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Employees.AddRange(employee1, employee2);
+        _context.Employees.AddRange(employee1, employee2);
 
         // Create schedule
         var schedule = new ShiftSchedule
@@ -166,7 +192,7 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
+        _context.ShiftSchedules.Add(schedule);
 
         // Create a single shift that could be assigned to either employee
         var shift = new Shift
@@ -180,8 +206,8 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Shifts.Add(shift);
-        await context.SaveChangesAsync();
+        _context.Shifts.Add(shift);
+        await _context.SaveChangesAsync();
 
         // Mock optimizer to return multiple possible solutions
         var mockResponse = new OptimizeResponse
@@ -246,7 +272,7 @@ public class OptimizerClientTests
         okResult.Should().NotBeNull();
         okResult!.Status.Should().Be(ScheduleStatus.Finalized);
 
-        var assignments = await context.ShiftAssignments
+        var assignments = await _context.ShiftAssignments
             .Where(a => a.ShiftId == shift.Id)
             .ToListAsync();
         assignments.Should().HaveCount(1);
@@ -266,22 +292,21 @@ public class OptimizerClientTests
     public async Task Finalize_WhenOptimizerFails_ReturnsBadRequest()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
         var logger = NullLogger<SchedulesController>.Instance;
-        var controller = new SchedulesController(context, optimizerClient, logger);
+        var controller = new SchedulesController(_context, optimizerClient, logger);
 
         // Create minimal data for the test
         var employee = new Employee
         {
             Id = Guid.NewGuid(),
             Name = "Alice",
-            Email = "alice@example.com",
+            Email = $"alice-{Guid.NewGuid()}@example.com",
             Abilities = [],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Employees.Add(employee);
+        _context.Employees.Add(employee);
 
         var schedule = new ShiftSchedule
         {
@@ -292,7 +317,7 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
+        _context.ShiftSchedules.Add(schedule);
 
         var shift = new Shift
         {
@@ -305,8 +330,8 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Shifts.Add(shift);
-        await context.SaveChangesAsync();
+        _context.Shifts.Add(shift);
+        await _context.SaveChangesAsync();
 
         // Mock optimizer to return failure (no valid solution found)
         var errorObj = new Error();
@@ -334,21 +359,20 @@ public class OptimizerClientTests
     public async Task Finalize_WhenOptimizerReturnsEmptySolutions_ReturnsBadRequest()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
         var logger = NullLogger<SchedulesController>.Instance;
-        var controller = new SchedulesController(context, optimizerClient, logger);
+        var controller = new SchedulesController(_context, optimizerClient, logger);
 
         var employee = new Employee
         {
             Id = Guid.NewGuid(),
             Name = "Alice",
-            Email = "alice@example.com",
+            Email = $"alice-{Guid.NewGuid()}@example.com",
             Abilities = ["bartender"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Employees.Add(employee);
+        _context.Employees.Add(employee);
 
         var schedule = new ShiftSchedule
         {
@@ -359,7 +383,7 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
+        _context.ShiftSchedules.Add(schedule);
 
         var shift = new Shift
         {
@@ -372,8 +396,8 @@ public class OptimizerClientTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.Shifts.Add(shift);
-        await context.SaveChangesAsync();
+        _context.Shifts.Add(shift);
+        await _context.SaveChangesAsync();
 
         // Mock optimizer returns success but empty solutions
         var mockResponse = new OptimizeResponse

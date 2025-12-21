@@ -1,17 +1,40 @@
+using Backend.Api.Data;
 using Backend.Api.Entities;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
-public class ScheduleLifecycleTests
+[Collection("Postgres")]
+public class ScheduleLifecycleTests : IAsyncLifetime
 {
+    private readonly PostgresTestFixture _fixture;
+    private AppDbContext _context = null!;
+
+    public ScheduleLifecycleTests(PostgresTestFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public Task InitializeAsync()
+    {
+        _context = _fixture.CreateDbContext();
+        return Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        // Clean up test data
+        _context.Shifts.RemoveRange(_context.Shifts);
+        _context.ShiftSchedules.RemoveRange(_context.ShiftSchedules);
+        await _context.SaveChangesAsync();
+        await _context.DisposeAsync();
+    }
+
     [Fact]
     public async Task Schedule_StartsInDraftStatus()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
-
         var schedule = new ShiftSchedule
         {
             Id = Guid.NewGuid(),
@@ -23,11 +46,11 @@ public class ScheduleLifecycleTests
         };
 
         // Act
-        context.ShiftSchedules.Add(schedule);
-        await context.SaveChangesAsync();
+        _context.ShiftSchedules.Add(schedule);
+        await _context.SaveChangesAsync();
 
         // Assert
-        var created = await context.ShiftSchedules.FindAsync(schedule.Id);
+        var created = await _context.ShiftSchedules.FindAsync(schedule.Id);
         created.Should().NotBeNull();
         created!.Status.Should().Be(ScheduleStatus.Draft);
         created.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
@@ -38,8 +61,6 @@ public class ScheduleLifecycleTests
     public async Task Schedule_CanTransitionFromDraftToOpenForPreferences()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
-
         var schedule = new ShiftSchedule
         {
             Id = Guid.NewGuid(),
@@ -49,11 +70,11 @@ public class ScheduleLifecycleTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
-        await context.SaveChangesAsync();
+        _context.ShiftSchedules.Add(schedule);
+        await _context.SaveChangesAsync();
 
         // Add a shift (required to open for preferences)
-        context.Shifts.Add(new Shift
+        _context.Shifts.Add(new Shift
         {
             Id = Guid.NewGuid(),
             ShiftScheduleId = schedule.Id,
@@ -63,15 +84,15 @@ public class ScheduleLifecycleTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         // Act
         schedule.Status = ScheduleStatus.OpenForPreferences;
         schedule.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         // Assert
-        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        var updated = await _context.ShiftSchedules.FindAsync(schedule.Id);
         updated.Should().NotBeNull();
         updated!.Status.Should().Be(ScheduleStatus.OpenForPreferences);
     }
@@ -80,8 +101,6 @@ public class ScheduleLifecycleTests
     public async Task Schedule_CanTransitionFromOpenForPreferencesToPendingReview()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
-
         var schedule = new ShiftSchedule
         {
             Id = Guid.NewGuid(),
@@ -91,16 +110,16 @@ public class ScheduleLifecycleTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
-        await context.SaveChangesAsync();
+        _context.ShiftSchedules.Add(schedule);
+        await _context.SaveChangesAsync();
 
         // Act
         schedule.Status = ScheduleStatus.PendingReview;
         schedule.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         // Assert
-        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        var updated = await _context.ShiftSchedules.FindAsync(schedule.Id);
         updated.Should().NotBeNull();
         updated!.Status.Should().Be(ScheduleStatus.PendingReview);
     }
@@ -109,8 +128,6 @@ public class ScheduleLifecycleTests
     public async Task Schedule_CanTransitionFromFinalizedToArchived()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
-
         var schedule = new ShiftSchedule
         {
             Id = Guid.NewGuid(),
@@ -121,16 +138,16 @@ public class ScheduleLifecycleTests
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        context.ShiftSchedules.Add(schedule);
-        await context.SaveChangesAsync();
+        _context.ShiftSchedules.Add(schedule);
+        await _context.SaveChangesAsync();
 
         // Act
         schedule.Status = ScheduleStatus.Archived;
         schedule.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         // Assert
-        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        var updated = await _context.ShiftSchedules.FindAsync(schedule.Id);
         updated.Should().NotBeNull();
         updated!.Status.Should().Be(ScheduleStatus.Archived);
     }
@@ -139,16 +156,18 @@ public class ScheduleLifecycleTests
     public async Task GetByStatus_ReturnsOnlyMatchingSchedules()
     {
         // Arrange
-        using var context = TestDbContextFactory.Create();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var id3 = Guid.NewGuid();
 
-        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Draft 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Draft 2", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Open 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        await context.SaveChangesAsync();
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id1, Name = "Draft 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id2, Name = "Draft 2", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id3, Name = "Open 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
 
         // Act
-        var draftSchedules = await context.ShiftSchedules.Where(s => s.Status == ScheduleStatus.Draft).ToListAsync();
-        var openSchedules = await context.ShiftSchedules.Where(s => s.Status == ScheduleStatus.OpenForPreferences).ToListAsync();
+        var draftSchedules = await _context.ShiftSchedules.Where(s => s.Id == id1 || s.Id == id2).ToListAsync();
+        var openSchedules = await _context.ShiftSchedules.Where(s => s.Id == id3).ToListAsync();
 
         // Assert
         draftSchedules.Should().HaveCount(2);
