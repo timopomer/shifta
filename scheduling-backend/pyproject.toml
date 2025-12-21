@@ -36,7 +36,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
-ignore = ["E501"]
+ignore = ["E501", "I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["scheduling"]

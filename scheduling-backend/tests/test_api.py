@@ -1,7 +1,5 @@
 """Tests for the FastAPI optimization endpoint."""
 
-from datetime import datetime
-
 import pytest
 from fastapi.testclient import TestClient
 

@@ -107,7 +107,7 @@ def optimize(request: OptimizeRequest) -> OptimizeResponse:
     except ValueError as e:
         return OptimizeResponse(success=False, error=str(e))
     except Exception as e:
-        return OptimizeResponse(success=False, error=f"Optimization failed: {str(e)}")
+        return OptimizeResponse(success=False, error=f"Optimization failed: {e!s}")
 
 
 @router.get("/health")
