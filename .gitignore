@@ -1,3 +1,57 @@
+# =========================
+# .NET / C#
+# =========================
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Build artifacts
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Rider
+.idea/
+
+# User-specific files
+*.rsuser
+*.DotSettings.user
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Mac
+.DS_Store
+
+# =========================
+# Python
+# =========================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -74,3 +128,13 @@ dmypy.json
 
 # pyright
 pyrightconfig.json
+
+# =========================
+# Generated files
+# =========================
+
+# To regenerate API clients: ./scripts/generate-optimizer-client.sh
+# NOTE: Generated clients are committed to avoid CI build dependencies
+
+# OpenAPI spec (temporary, generated during client generation)
+scheduling-backend/openapi.json
