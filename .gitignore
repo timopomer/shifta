@@ -133,8 +133,8 @@ pyrightconfig.json
 # Generated files
 # =========================
 
-# Generated API clients (regenerate with: ./scripts/generate-optimizer-client.sh)
-backend/Backend.Api/Clients/Generated/
+# To regenerate API clients: ./scripts/generate-optimizer-client.sh
+# NOTE: Generated clients are committed to avoid CI build dependencies
 
 # OpenAPI spec (temporary, generated during client generation)
 scheduling-backend/openapi.json

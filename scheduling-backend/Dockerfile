@@ -9,7 +9,7 @@ COPY src/ src/
 RUN uv pip install --system --no-cache --no-deps .
 
 FROM base AS test
-RUN uv pip install --system --no-cache --extra dev -r pyproject.toml
+RUN uv pip install --system --no-cache ".[dev]"
 COPY tests/ tests/
 CMD ["sh", "-c", "ruff check src tests && pytest -v --cov=scheduling --cov-report=term-missing"]
 
