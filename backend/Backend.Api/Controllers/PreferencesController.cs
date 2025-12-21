@@ -1,7 +1,8 @@
+using Backend.Api.Data;
 using Backend.Api.Dtos;
 using Backend.Api.Entities;
-using Backend.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Api.Controllers;
 
@@ -9,41 +10,44 @@ namespace Backend.Api.Controllers;
 [Route("api/[controller]")]
 public class PreferencesController : ControllerBase
 {
-    private readonly PreferenceService _preferenceService;
-    private readonly ShiftService _shiftService;
-    private readonly ScheduleService _scheduleService;
-    private readonly EmployeeService _employeeService;
+    private readonly AppDbContext _db;
 
-    public PreferencesController(
-        PreferenceService preferenceService,
-        ShiftService shiftService,
-        ScheduleService scheduleService,
-        EmployeeService employeeService)
+    public PreferencesController(AppDbContext db)
     {
-        _preferenceService = preferenceService;
-        _shiftService = shiftService;
-        _scheduleService = scheduleService;
-        _employeeService = employeeService;
+        _db = db;
     }
 
     [HttpGet("schedule/{scheduleId:guid}")]
     public async Task<ActionResult<List<PreferenceResponse>>> GetBySchedule(Guid scheduleId, CancellationToken ct)
     {
-        var preferences = await _preferenceService.GetByScheduleIdAsync(scheduleId, ct);
+        var preferences = await (
+            from preference in _db.EmployeePreferences
+            join shift in _db.Shifts on preference.ShiftId equals shift.Id
+            where shift.ShiftScheduleId == scheduleId
+            select preference
+        ).AsNoTracking().ToListAsync(ct);
+
         return preferences.Select(MapToResponse).ToList();
     }
 
     [HttpGet("employee/{employeeId:guid}")]
     public async Task<ActionResult<List<PreferenceResponse>>> GetByEmployee(Guid employeeId, CancellationToken ct)
     {
-        var preferences = await _preferenceService.GetByEmployeeIdAsync(employeeId, ct);
+        var preferences = await _db.EmployeePreferences
+            .AsNoTracking()
+            .Where(p => p.EmployeeId == employeeId)
+            .ToListAsync(ct);
+
         return preferences.Select(MapToResponse).ToList();
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<PreferenceResponse>> GetById(Guid id, CancellationToken ct)
     {
-        var preference = await _preferenceService.GetByIdAsync(id, ct);
+        var preference = await _db.EmployeePreferences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id, ct);
+
         if (preference is null)
             return NotFound();
 
@@ -54,12 +58,18 @@ public class PreferencesController : ControllerBase
     public async Task<ActionResult<PreferenceResponse>> Create(CreatePreferenceRequest request, CancellationToken ct)
     {
         // Validate the shift exists
-        var shift = await _shiftService.GetByIdAsync(request.ShiftId, ct);
+        var shift = await _db.Shifts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == request.ShiftId, ct);
+
         if (shift is null)
             return BadRequest(new { error = "Shift not found" });
 
         // Get the schedule to check status
-        var schedule = await _scheduleService.GetByIdAsync(shift.ShiftScheduleId, ct);
+        var schedule = await _db.ShiftSchedules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == shift.ShiftScheduleId, ct);
+
         if (schedule is null)
             return BadRequest(new { error = "Schedule not found" });
 
@@ -67,7 +77,10 @@ public class PreferencesController : ControllerBase
             return BadRequest(new { error = "Preferences can only be submitted when schedule is OpenForPreferences" });
 
         // Validate the employee exists
-        var employee = await _employeeService.GetByIdAsync(request.EmployeeId, ct);
+        var employee = await _db.Employees
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct);
+
         if (employee is null)
             return BadRequest(new { error = "Employee not found" });
 
@@ -83,35 +96,47 @@ public class PreferencesController : ControllerBase
 
         var preference = new EmployeePreference
         {
+            Id = Guid.NewGuid(),
             EmployeeId = request.EmployeeId,
             ShiftId = request.ShiftId,
             Type = request.Type,
             PeriodStart = request.PeriodStart,
             PeriodEnd = request.PeriodEnd,
-            IsHard = request.IsHard
+            IsHard = request.IsHard,
+            CreatedAt = DateTime.UtcNow
         };
 
-        var created = await _preferenceService.CreateAsync(preference, ct);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToResponse(created));
+        _db.EmployeePreferences.Add(preference);
+        await _db.SaveChangesAsync(ct);
+
+        return CreatedAtAction(nameof(GetById), new { id = preference.Id }, MapToResponse(preference));
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var preference = await _preferenceService.GetByIdAsync(id, ct);
+        var preference = await _db.EmployeePreferences.FindAsync([id], ct);
         if (preference is null)
             return NotFound();
 
         // Get the shift and schedule to check status
-        var shift = await _shiftService.GetByIdAsync(preference.ShiftId, ct);
+        var shift = await _db.Shifts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == preference.ShiftId, ct);
+
         if (shift is not null)
         {
-            var schedule = await _scheduleService.GetByIdAsync(shift.ShiftScheduleId, ct);
+            var schedule = await _db.ShiftSchedules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == shift.ShiftScheduleId, ct);
+
             if (schedule is not null && schedule.Status != ScheduleStatus.OpenForPreferences)
                 return BadRequest(new { error = "Preferences can only be deleted when schedule is OpenForPreferences" });
         }
 
-        await _preferenceService.DeleteAsync(id, ct);
+        _db.EmployeePreferences.Remove(preference);
+        await _db.SaveChangesAsync(ct);
+
         return NoContent();
     }
 

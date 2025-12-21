@@ -1,31 +1,36 @@
 using Backend.Api.Entities;
-using Backend.Api.Services;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
-public class EmployeeServiceTests
+public class EmployeeTests
 {
     [Fact]
     public async Task Employee_CanBeCreatedWithAbilities()
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = new EmployeeService(context);
 
         var employee = new Employee
         {
+            Id = Guid.NewGuid(),
             Name = "Alice",
             Email = "alice@example.com",
             Abilities = ["bartender", "waiter", "kitchen"],
-            IsManager = false
+            IsManager = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         // Act
-        var created = await service.CreateAsync(employee);
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
 
         // Assert
-        created.Id.Should().NotBeEmpty();
+        var created = await context.Employees.FindAsync(employee.Id);
+        created.Should().NotBeNull();
+        created!.Id.Should().NotBeEmpty();
         created.Abilities.Should().HaveCount(3);
         created.Abilities.Should().Contain("bartender");
         created.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
@@ -36,21 +41,26 @@ public class EmployeeServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = new EmployeeService(context);
 
         var manager = new Employee
         {
+            Id = Guid.NewGuid(),
             Name = "Bob",
             Email = "bob@example.com",
             Abilities = ["bartender"],
-            IsManager = true
+            IsManager = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         // Act
-        var created = await service.CreateAsync(manager);
+        context.Employees.Add(manager);
+        await context.SaveChangesAsync();
 
         // Assert
-        created.IsManager.Should().BeTrue();
+        var created = await context.Employees.FindAsync(manager.Id);
+        created.Should().NotBeNull();
+        created!.IsManager.Should().BeTrue();
     }
 
     [Fact]
@@ -58,22 +68,29 @@ public class EmployeeServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = new EmployeeService(context);
 
-        var employee = await service.CreateAsync(new Employee
+        var employee = new Employee
         {
+            Id = Guid.NewGuid(),
             Name = "Alice",
             Email = "alice@example.com",
-            Abilities = ["waiter"]
-        });
+            Abilities = ["waiter"],
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
 
         // Act
         employee.Name = "Alice Smith";
         employee.Abilities = ["waiter", "bartender"];
-        var updated = await service.UpdateAsync(employee);
+        employee.UpdatedAt = DateTime.UtcNow.AddSeconds(1);
+        await context.SaveChangesAsync();
 
         // Assert
-        updated.Name.Should().Be("Alice Smith");
+        var updated = await context.Employees.FindAsync(employee.Id);
+        updated.Should().NotBeNull();
+        updated!.Name.Should().Be("Alice Smith");
         updated.Abilities.Should().HaveCount(2);
         updated.UpdatedAt.Should().BeAfter(updated.CreatedAt);
     }
@@ -83,17 +100,22 @@ public class EmployeeServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = new EmployeeService(context);
 
-        var employee = await service.CreateAsync(new Employee
+        var employee = new Employee
         {
+            Id = Guid.NewGuid(),
             Name = "Alice",
-            Email = "alice@example.com"
-        });
+            Email = "alice@example.com",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
 
         // Act
-        await service.DeleteAsync(employee.Id);
-        var retrieved = await service.GetByIdAsync(employee.Id);
+        context.Employees.Remove(employee);
+        await context.SaveChangesAsync();
+        var retrieved = await context.Employees.FindAsync(employee.Id);
 
         // Assert
         retrieved.Should().BeNull();
@@ -104,14 +126,14 @@ public class EmployeeServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = new EmployeeService(context);
 
-        await service.CreateAsync(new Employee { Name = "Alice", Email = "alice@example.com" });
-        await service.CreateAsync(new Employee { Name = "Bob", Email = "bob@example.com" });
-        await service.CreateAsync(new Employee { Name = "Carol", Email = "carol@example.com" });
+        context.Employees.Add(new Employee { Id = Guid.NewGuid(), Name = "Alice", Email = "alice@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        context.Employees.Add(new Employee { Id = Guid.NewGuid(), Name = "Bob", Email = "bob@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        context.Employees.Add(new Employee { Id = Guid.NewGuid(), Name = "Carol", Email = "carol@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
 
         // Act
-        var all = await service.GetAllAsync();
+        var all = await context.Employees.ToListAsync();
 
         // Assert
         all.Should().HaveCount(3);

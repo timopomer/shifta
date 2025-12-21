@@ -1,23 +1,9 @@
 using System.Text.Json.Serialization;
-using Autofac;
-using Autofac.Extensions.DependencyInjection;
 using Backend.Api.Clients.Generated;
 using Backend.Api.Data;
-using Backend.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Use Autofac as the DI container
-builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
-builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
-{
-    // Register services - they will automatically get DbContext injected
-    containerBuilder.RegisterType<EmployeeService>().InstancePerLifetimeScope();
-    containerBuilder.RegisterType<ScheduleService>().InstancePerLifetimeScope();
-    containerBuilder.RegisterType<ShiftService>().InstancePerLifetimeScope();
-    containerBuilder.RegisterType<PreferenceService>().InstancePerLifetimeScope();
-});
 
 // Add services to the container
 builder.Services.AddControllers()

@@ -1,17 +1,16 @@
 using Backend.Api.Entities;
-using Backend.Api.Services;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
-public class PreferenceServiceTests
+public class PreferenceTests
 {
     [Fact]
     public async Task Preference_CanBeCreatedForShift()
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var preferenceService = new PreferenceService(context);
 
         var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
@@ -23,17 +22,23 @@ public class PreferenceServiceTests
         await context.SaveChangesAsync();
 
         // Act
-        var preference = await preferenceService.CreateAsync(new EmployeePreference
+        var preference = new EmployeePreference
         {
+            Id = Guid.NewGuid(),
             EmployeeId = employee.Id,
             ShiftId = shift.Id,
             Type = PreferenceType.PreferShift,
-            IsHard = false
-        });
+            IsHard = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        context.EmployeePreferences.Add(preference);
+        await context.SaveChangesAsync();
 
         // Assert
-        preference.Id.Should().NotBeEmpty();
-        preference.Type.Should().Be(PreferenceType.PreferShift);
+        var created = await context.EmployeePreferences.FindAsync(preference.Id);
+        created.Should().NotBeNull();
+        created!.Id.Should().NotBeEmpty();
+        created.Type.Should().Be(PreferenceType.PreferShift);
     }
 
     [Fact]
@@ -41,7 +46,6 @@ public class PreferenceServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var preferenceService = new PreferenceService(context);
 
         var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
@@ -56,21 +60,27 @@ public class PreferenceServiceTests
         var periodEnd = new DateTime(2024, 12, 25, 23, 59, 59);
 
         // Act
-        var preference = await preferenceService.CreateAsync(new EmployeePreference
+        var preference = new EmployeePreference
         {
+            Id = Guid.NewGuid(),
             EmployeeId = employee.Id,
             ShiftId = shift.Id,
             Type = PreferenceType.Unavailable,
             PeriodStart = periodStart,
             PeriodEnd = periodEnd,
-            IsHard = true
-        });
+            IsHard = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        context.EmployeePreferences.Add(preference);
+        await context.SaveChangesAsync();
 
         // Assert
-        preference.Type.Should().Be(PreferenceType.Unavailable);
-        preference.PeriodStart.Should().Be(periodStart);
-        preference.PeriodEnd.Should().Be(periodEnd);
-        preference.IsHard.Should().BeTrue();
+        var created = await context.EmployeePreferences.FindAsync(preference.Id);
+        created.Should().NotBeNull();
+        created!.Type.Should().Be(PreferenceType.Unavailable);
+        created.PeriodStart.Should().Be(periodStart);
+        created.PeriodEnd.Should().Be(periodEnd);
+        created.IsHard.Should().BeTrue();
     }
 
     [Fact]
@@ -78,7 +88,6 @@ public class PreferenceServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var preferenceService = new PreferenceService(context);
 
         var schedule1 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var schedule2 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 2", WeekStartDate = DateTime.Now.AddDays(7), Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
@@ -91,12 +100,24 @@ public class PreferenceServiceTests
         context.Employees.Add(employee);
         await context.SaveChangesAsync();
 
-        await preferenceService.CreateAsync(new EmployeePreference { EmployeeId = employee.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift });
-        await preferenceService.CreateAsync(new EmployeePreference { EmployeeId = employee.Id, ShiftId = shift2.Id, Type = PreferenceType.PreferShift });
+        context.EmployeePreferences.Add(new EmployeePreference { Id = Guid.NewGuid(), EmployeeId = employee.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift, CreatedAt = DateTime.UtcNow });
+        context.EmployeePreferences.Add(new EmployeePreference { Id = Guid.NewGuid(), EmployeeId = employee.Id, ShiftId = shift2.Id, Type = PreferenceType.PreferShift, CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
 
-        // Act - Using explicit join in service
-        var schedule1Prefs = await preferenceService.GetByScheduleIdAsync(schedule1.Id);
-        var schedule2Prefs = await preferenceService.GetByScheduleIdAsync(schedule2.Id);
+        // Act - Using explicit join
+        var schedule1Prefs = await (
+            from preference in context.EmployeePreferences
+            join shift in context.Shifts on preference.ShiftId equals shift.Id
+            where shift.ShiftScheduleId == schedule1.Id
+            select preference
+        ).ToListAsync();
+
+        var schedule2Prefs = await (
+            from preference in context.EmployeePreferences
+            join shift in context.Shifts on preference.ShiftId equals shift.Id
+            where shift.ShiftScheduleId == schedule2.Id
+            select preference
+        ).ToListAsync();
 
         // Assert
         schedule1Prefs.Should().HaveCount(1);
@@ -110,7 +131,6 @@ public class PreferenceServiceTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var preferenceService = new PreferenceService(context);
 
         var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var shift1 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
@@ -123,13 +143,14 @@ public class PreferenceServiceTests
         context.Employees.AddRange(alice, bob);
         await context.SaveChangesAsync();
 
-        await preferenceService.CreateAsync(new EmployeePreference { EmployeeId = alice.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift });
-        await preferenceService.CreateAsync(new EmployeePreference { EmployeeId = alice.Id, ShiftId = shift2.Id, Type = PreferenceType.PreferShift });
-        await preferenceService.CreateAsync(new EmployeePreference { EmployeeId = bob.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift });
+        context.EmployeePreferences.Add(new EmployeePreference { Id = Guid.NewGuid(), EmployeeId = alice.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift, CreatedAt = DateTime.UtcNow });
+        context.EmployeePreferences.Add(new EmployeePreference { Id = Guid.NewGuid(), EmployeeId = alice.Id, ShiftId = shift2.Id, Type = PreferenceType.PreferShift, CreatedAt = DateTime.UtcNow });
+        context.EmployeePreferences.Add(new EmployeePreference { Id = Guid.NewGuid(), EmployeeId = bob.Id, ShiftId = shift1.Id, Type = PreferenceType.PreferShift, CreatedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
 
         // Act
-        var alicePrefs = await preferenceService.GetByEmployeeIdAsync(alice.Id);
-        var bobPrefs = await preferenceService.GetByEmployeeIdAsync(bob.Id);
+        var alicePrefs = await context.EmployeePreferences.Where(p => p.EmployeeId == alice.Id).ToListAsync();
+        var bobPrefs = await context.EmployeePreferences.Where(p => p.EmployeeId == bob.Id).ToListAsync();
 
         // Assert
         alicePrefs.Should().HaveCount(2);

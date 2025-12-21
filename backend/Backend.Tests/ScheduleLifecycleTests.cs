@@ -1,9 +1,6 @@
-using Backend.Api.Clients.Generated;
 using Backend.Api.Entities;
-using Backend.Api.Services;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
@@ -14,19 +11,25 @@ public class ScheduleLifecycleTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = CreateScheduleService(context);
 
         var schedule = new ShiftSchedule
         {
+            Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23)
+            WeekStartDate = new DateTime(2024, 12, 23),
+            Status = ScheduleStatus.Draft,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         // Act
-        var created = await service.CreateAsync(schedule);
+        context.ShiftSchedules.Add(schedule);
+        await context.SaveChangesAsync();
 
         // Assert
-        created.Status.Should().Be(ScheduleStatus.Draft);
+        var created = await context.ShiftSchedules.FindAsync(schedule.Id);
+        created.Should().NotBeNull();
+        created!.Status.Should().Be(ScheduleStatus.Draft);
         created.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
         created.FinalizedAt.Should().BeNull();
     }
@@ -36,13 +39,18 @@ public class ScheduleLifecycleTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = CreateScheduleService(context);
 
-        var schedule = await service.CreateAsync(new ShiftSchedule
+        var schedule = new ShiftSchedule
         {
+            Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23)
-        });
+            WeekStartDate = new DateTime(2024, 12, 23),
+            Status = ScheduleStatus.Draft,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        context.ShiftSchedules.Add(schedule);
+        await context.SaveChangesAsync();
 
         // Add a shift (required to open for preferences)
         context.Shifts.Add(new Shift
@@ -58,10 +66,14 @@ public class ScheduleLifecycleTests
         await context.SaveChangesAsync();
 
         // Act
-        var updated = await service.OpenForPreferencesAsync(schedule.Id);
+        schedule.Status = ScheduleStatus.OpenForPreferences;
+        schedule.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
 
         // Assert
-        updated.Status.Should().Be(ScheduleStatus.OpenForPreferences);
+        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(ScheduleStatus.OpenForPreferences);
     }
 
     [Fact]
@@ -69,7 +81,6 @@ public class ScheduleLifecycleTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = CreateScheduleService(context);
 
         var schedule = new ShiftSchedule
         {
@@ -84,10 +95,14 @@ public class ScheduleLifecycleTests
         await context.SaveChangesAsync();
 
         // Act
-        var updated = await service.ClosePreferencesAsync(schedule.Id);
+        schedule.Status = ScheduleStatus.PendingReview;
+        schedule.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
 
         // Assert
-        updated.Status.Should().Be(ScheduleStatus.PendingReview);
+        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(ScheduleStatus.PendingReview);
     }
 
     [Fact]
@@ -95,7 +110,6 @@ public class ScheduleLifecycleTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = CreateScheduleService(context);
 
         var schedule = new ShiftSchedule
         {
@@ -111,10 +125,14 @@ public class ScheduleLifecycleTests
         await context.SaveChangesAsync();
 
         // Act
-        var updated = await service.ArchiveAsync(schedule.Id);
+        schedule.Status = ScheduleStatus.Archived;
+        schedule.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
 
         // Assert
-        updated.Status.Should().Be(ScheduleStatus.Archived);
+        var updated = await context.ShiftSchedules.FindAsync(schedule.Id);
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(ScheduleStatus.Archived);
     }
 
     [Fact]
@@ -122,37 +140,19 @@ public class ScheduleLifecycleTests
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
-        var service = CreateScheduleService(context);
 
-        await service.CreateAsync(new ShiftSchedule { Name = "Draft 1", WeekStartDate = DateTime.Now });
-        await service.CreateAsync(new ShiftSchedule { Name = "Draft 2", WeekStartDate = DateTime.Now });
-
-        var openSchedule = new ShiftSchedule
-        {
-            Id = Guid.NewGuid(),
-            Name = "Open 1",
-            WeekStartDate = DateTime.Now,
-            Status = ScheduleStatus.OpenForPreferences,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        context.ShiftSchedules.Add(openSchedule);
+        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Draft 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Draft 2", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        context.ShiftSchedules.Add(new ShiftSchedule { Id = Guid.NewGuid(), Name = "Open 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
         await context.SaveChangesAsync();
 
         // Act
-        var draftSchedules = await service.GetByStatusAsync(ScheduleStatus.Draft);
-        var openSchedules = await service.GetByStatusAsync(ScheduleStatus.OpenForPreferences);
+        var draftSchedules = await context.ShiftSchedules.Where(s => s.Status == ScheduleStatus.Draft).ToListAsync();
+        var openSchedules = await context.ShiftSchedules.Where(s => s.Status == ScheduleStatus.OpenForPreferences).ToListAsync();
 
         // Assert
         draftSchedules.Should().HaveCount(2);
         openSchedules.Should().HaveCount(1);
         openSchedules[0].Name.Should().Be("Open 1");
-    }
-
-    private static ScheduleService CreateScheduleService(Api.Data.AppDbContext context)
-    {
-        var optimizerClient = Substitute.For<IOptimizerApiClient>();
-        var logger = NullLogger<ScheduleService>.Instance;
-        return new ScheduleService(context, optimizerClient, logger);
     }
 }

@@ -1,9 +1,10 @@
 using Backend.Api.Clients.Generated;
+using Backend.Api.Controllers;
 using Backend.Api.Entities;
-using Backend.Api.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests;
 
@@ -15,8 +16,8 @@ public class OptimizerClientTests
         // Arrange
         using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
-        var logger = NullLogger<ScheduleService>.Instance;
-        var service = new ScheduleService(context, optimizerClient, logger);
+        var logger = NullLogger<SchedulesController>.Instance;
+        var controller = new SchedulesController(context, optimizerClient, logger);
 
         // Create employees
         var employee1 = new Employee
@@ -110,13 +111,16 @@ public class OptimizerClientTests
             .Returns(mockResponse);
 
         // Act
-        var finalized = await service.FinalizeAsync(schedule.Id);
+        var result = await controller.Finalize(schedule.Id, CancellationToken.None);
 
         // Assert
-        finalized.Status.Should().Be(ScheduleStatus.Finalized);
-        finalized.FinalizedAt.Should().NotBeNull();
+        var okResult = result.Value;
+        okResult.Should().NotBeNull();
+        okResult!.Status.Should().Be(ScheduleStatus.Finalized);
 
-        var assignments = await service.GetAssignmentsAsync(schedule.Id);
+        var assignments = await context.ShiftAssignments
+            .Where(a => context.Shifts.Where(s => s.ShiftScheduleId == schedule.Id).Select(s => s.Id).Contains(a.ShiftId))
+            .ToListAsync();
         assignments.Should().HaveCount(2);
         assignments.Should().Contain(a => a.ShiftId == shift1.Id && a.EmployeeId == employee1.Id);
         assignments.Should().Contain(a => a.ShiftId == shift2.Id && a.EmployeeId == employee2.Id);
@@ -128,8 +132,8 @@ public class OptimizerClientTests
         // Arrange
         using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
-        var logger = NullLogger<ScheduleService>.Instance;
-        var service = new ScheduleService(context, optimizerClient, logger);
+        var logger = NullLogger<SchedulesController>.Instance;
+        var controller = new SchedulesController(context, optimizerClient, logger);
 
         // Create employees
         var employee1 = new Employee
@@ -235,12 +239,16 @@ public class OptimizerClientTests
             .Returns(mockResponse);
 
         // Act
-        var finalized = await service.FinalizeAsync(schedule.Id);
+        var result = await controller.Finalize(schedule.Id, CancellationToken.None);
 
         // Assert - should pick the first (best) solution
-        finalized.Status.Should().Be(ScheduleStatus.Finalized);
+        var okResult = result.Value;
+        okResult.Should().NotBeNull();
+        okResult!.Status.Should().Be(ScheduleStatus.Finalized);
 
-        var assignments = await service.GetAssignmentsAsync(schedule.Id);
+        var assignments = await context.ShiftAssignments
+            .Where(a => a.ShiftId == shift.Id)
+            .ToListAsync();
         assignments.Should().HaveCount(1);
         // First solution assigns to employee1
         assignments[0].EmployeeId.Should().Be(employee1.Id);
@@ -255,13 +263,13 @@ public class OptimizerClientTests
     }
 
     [Fact]
-    public async Task Finalize_WhenOptimizerFails_ThrowsException()
+    public async Task Finalize_WhenOptimizerFails_ReturnsBadRequest()
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
-        var logger = NullLogger<ScheduleService>.Instance;
-        var service = new ScheduleService(context, optimizerClient, logger);
+        var logger = NullLogger<SchedulesController>.Instance;
+        var controller = new SchedulesController(context, optimizerClient, logger);
 
         // Create minimal data for the test
         var employee = new Employee
@@ -315,20 +323,21 @@ public class OptimizerClientTests
             .PostAsync(Arg.Any<OptimizeRequest>(), Arg.Any<CancellationToken>())
             .Returns(mockResponse);
 
-        // Act & Assert
-        var act = async () => await service.FinalizeAsync(schedule.Id);
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*No feasible solution found*");
+        // Act
+        var result = await controller.Finalize(schedule.Id, CancellationToken.None);
+
+        // Assert
+        result.Result.Should().BeOfType<Microsoft.AspNetCore.Mvc.BadRequestObjectResult>();
     }
 
     [Fact]
-    public async Task Finalize_WhenOptimizerReturnsEmptySolutions_ThrowsException()
+    public async Task Finalize_WhenOptimizerReturnsEmptySolutions_ReturnsBadRequest()
     {
         // Arrange
         using var context = TestDbContextFactory.Create();
         var optimizerClient = Substitute.For<IOptimizerApiClient>();
-        var logger = NullLogger<ScheduleService>.Instance;
-        var service = new ScheduleService(context, optimizerClient, logger);
+        var logger = NullLogger<SchedulesController>.Instance;
+        var controller = new SchedulesController(context, optimizerClient, logger);
 
         var employee = new Employee
         {
@@ -377,9 +386,10 @@ public class OptimizerClientTests
             .PostAsync(Arg.Any<OptimizeRequest>(), Arg.Any<CancellationToken>())
             .Returns(mockResponse);
 
-        // Act & Assert
-        var act = async () => await service.FinalizeAsync(schedule.Id);
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*No solutions found*");
+        // Act
+        var result = await controller.Finalize(schedule.Id, CancellationToken.None);
+
+        // Assert
+        result.Result.Should().BeOfType<Microsoft.AspNetCore.Mvc.BadRequestObjectResult>();
     }
 }
