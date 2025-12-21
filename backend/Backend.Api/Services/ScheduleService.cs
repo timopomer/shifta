@@ -1,5 +1,4 @@
-using Backend.Api.Clients;
-using Backend.Api.Clients.Dto;
+using Backend.Api.Clients.Generated;
 using Backend.Api.Data;
 using Backend.Api.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +8,10 @@ namespace Backend.Api.Services;
 public class ScheduleService
 {
     private readonly AppDbContext _db;
-    private readonly IOptimizerClient _optimizerClient;
+    private readonly IOptimizerApiClient _optimizerClient;
     private readonly ILogger<ScheduleService> _logger;
 
-    public ScheduleService(AppDbContext db, IOptimizerClient optimizerClient, ILogger<ScheduleService> logger)
+    public ScheduleService(AppDbContext db, IOptimizerApiClient optimizerClient, ILogger<ScheduleService> logger)
     {
         _db = db;
         _optimizerClient = optimizerClient;
@@ -155,11 +154,11 @@ public class ScheduleService
             scheduleId, employees.Count, shifts.Count);
 
         // Call optimizer
-        var response = await _optimizerClient.OptimizeAsync(request, ct);
+        var response = await _optimizerClient.PostAsync(request, ct);
 
-        if (!response.Success || response.Solutions.Count == 0)
+        if (!response.Success || response.Solutions == null || response.Solutions.Count == 0)
         {
-            var error = response.Error ?? "No solutions found";
+            var error = response.Error?.AdditionalProperties.Values.FirstOrDefault()?.ToString() ?? "No solutions found";
             _logger.LogWarning("Optimization failed for schedule {ScheduleId}: {Error}", scheduleId, error);
             throw new InvalidOperationException($"Optimization failed: {error}");
         }
@@ -232,44 +231,47 @@ public class ScheduleService
         {
             Id = s.Id.ToString(),
             Name = s.Name,
-            StartTime = s.StartTime,
-            EndTime = s.EndTime,
-            RequiredAbilities = s.RequiredAbilities
+            Start_time = s.StartTime,
+            End_time = s.EndTime,
+            Required_abilities = s.RequiredAbilities
         }).ToList();
 
         return new OptimizeRequest
         {
             Employees = employeeDtos,
             Shifts = shiftDtos,
-            MaxSolutions = 1
+            Max_solutions = 1
         };
     }
 
-    private static PreferenceDto MapPreference(EmployeePreference pref)
+    private static Preferences MapPreference(EmployeePreference pref)
     {
-        return pref.Type switch
+        // The generated Preferences class uses AdditionalProperties for dynamic fields
+        var preference = new Preferences();
+        
+        switch (pref.Type)
         {
-            PreferenceType.PreferShift => new PreferenceDto
-            {
-                Type = "prefer_shift",
-                ShiftId = pref.ShiftId.ToString(),
-                IsHard = pref.IsHard
-            },
-            PreferenceType.PreferPeriod => new PreferenceDto
-            {
-                Type = "prefer_period",
-                Start = pref.PeriodStart,
-                End = pref.PeriodEnd,
-                IsHard = pref.IsHard
-            },
-            PreferenceType.Unavailable => new PreferenceDto
-            {
-                Type = "unavailable_period",
-                Start = pref.PeriodStart,
-                End = pref.PeriodEnd,
-                IsHard = pref.IsHard
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(pref), $"Unknown preference type: {pref.Type}")
-        };
+            case PreferenceType.PreferShift:
+                preference.AdditionalProperties["type"] = "prefer_shift";
+                preference.AdditionalProperties["shift_id"] = pref.ShiftId.ToString();
+                preference.AdditionalProperties["is_hard"] = pref.IsHard;
+                break;
+            case PreferenceType.PreferPeriod:
+                preference.AdditionalProperties["type"] = "prefer_period";
+                preference.AdditionalProperties["start"] = pref.PeriodStart?.ToString("o");
+                preference.AdditionalProperties["end"] = pref.PeriodEnd?.ToString("o");
+                preference.AdditionalProperties["is_hard"] = pref.IsHard;
+                break;
+            case PreferenceType.Unavailable:
+                preference.AdditionalProperties["type"] = "unavailable_period";
+                preference.AdditionalProperties["start"] = pref.PeriodStart?.ToString("o");
+                preference.AdditionalProperties["end"] = pref.PeriodEnd?.ToString("o");
+                preference.AdditionalProperties["is_hard"] = pref.IsHard;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(pref), $"Unknown preference type: {pref.Type}");
+        }
+        
+        return preference;
     }
 }

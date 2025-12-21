@@ -1,9 +1,9 @@
+using Backend.Api.Clients.Generated;
 using Backend.Api.Entities;
 using Backend.Api.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Backend.Api.Clients;
 
 namespace Backend.Tests;
 
@@ -151,7 +151,7 @@ public class ScheduleLifecycleTests
 
     private static ScheduleService CreateScheduleService(Api.Data.AppDbContext context)
     {
-        var optimizerClient = Substitute.For<IOptimizerClient>();
+        var optimizerClient = Substitute.For<IOptimizerApiClient>();
         var logger = NullLogger<ScheduleService>.Instance;
         return new ScheduleService(context, optimizerClient, logger);
     }

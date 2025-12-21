@@ -128,3 +128,13 @@ dmypy.json
 
 # pyright
 pyrightconfig.json
+
+# =========================
+# Generated files
+# =========================
+
+# Generated API clients (regenerate with: ./scripts/generate-optimizer-client.sh)
+backend/Backend.Api/Clients/Generated/
+
+# OpenAPI spec (temporary, generated during client generation)
+scheduling-backend/openapi.json

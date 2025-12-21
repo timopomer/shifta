@@ -1,11 +1,10 @@
 using System.Text.Json.Serialization;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
-using Backend.Api.Clients;
+using Backend.Api.Clients.Generated;
 using Backend.Api.Data;
 using Backend.Api.Services;
 using Microsoft.EntityFrameworkCore;
-using Refit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,11 +35,13 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Add Refit client for Python optimizer
+// Add generated optimizer client with configured base URL
 var optimizerBaseUrl = builder.Configuration["Optimizer:BaseUrl"]
     ?? "http://localhost:8000";
-builder.Services.AddRefitClient<IOptimizerClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(optimizerBaseUrl));
+builder.Services.AddHttpClient<IOptimizerApiClient, OptimizerApiClient>(client =>
+{
+    client.BaseAddress = new Uri(optimizerBaseUrl);
+});
 
 var app = builder.Build();
 
