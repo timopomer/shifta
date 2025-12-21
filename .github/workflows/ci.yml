@@ -6,10 +6,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/scheduling-backend
 
 jobs:
-  test:
+  test-scheduling-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +19,19 @@ jobs:
       - name: Run tests
         run: docker run --rm scheduling-backend:test
 
-  publish:
-    needs: test
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build --target test -t backend:test ./backend
+
+      - name: Run tests
+        run: docker run --rm backend:test
+
+  publish-scheduling-backend:
+    needs: [test-scheduling-backend, test-backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -39,7 +49,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/scheduling-backend
           tags: |
             type=sha,prefix=
             type=raw,value=latest
@@ -47,6 +57,38 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./scheduling-backend
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  publish-backend:
+    needs: [test-scheduling-backend, test-backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
           target: production
           push: true
           tags: ${{ steps.meta.outputs.tags }}
