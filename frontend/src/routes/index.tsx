@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Calendar, Users, Clock, CheckCircle } from 'lucide-react'
+import { Calendar, Users, Clock, CheckCircle, CalendarDays, HandHeart } from 'lucide-react'
 import { useSchedules } from '@/hooks'
 import { useEmployees } from '@/hooks'
 import { ScheduleStatus } from '@/api'
 import { StatusBadge, PageLoader } from '@/components'
+import { useCurrentUser } from '@/context'
 import { format } from 'date-fns'
 
 export const Route = createFileRoute('/')({
@@ -13,25 +14,36 @@ export const Route = createFileRoute('/')({
 function Dashboard() {
   const { data: schedules, isLoading: schedulesLoading } = useSchedules()
   const { data: employees, isLoading: employeesLoading } = useEmployees()
+  const { isManager, isLoading: userLoading } = useCurrentUser()
 
-  if (schedulesLoading || employeesLoading) {
+  if (schedulesLoading || employeesLoading || userLoading) {
     return <PageLoader />
   }
 
-  const activeSchedules = schedules?.filter(
-    (s) => s.status !== ScheduleStatus.Archived
-  ) ?? []
-  const draftSchedules = schedules?.filter(
-    (s) => s.status === ScheduleStatus.Draft
-  ) ?? []
-  const finalizedSchedules = schedules?.filter(
-    (s) => s.status === ScheduleStatus.Finalized
-  ) ?? []
+  // Show different dashboard based on role
+  if (isManager) {
+    return <ManagerDashboard schedules={schedules ?? []} employees={employees ?? []} />
+  }
+
+  return <EmployeeDashboard schedules={schedules ?? []} />
+}
+
+// Manager sees the full overview dashboard
+function ManagerDashboard({ 
+  schedules, 
+  employees 
+}: { 
+  schedules: { id: string; name: string; weekStartDate: string; status: ScheduleStatus }[]
+  employees: { id: string; name: string }[]
+}) {
+  const activeSchedules = schedules.filter((s) => s.status !== ScheduleStatus.Archived)
+  const draftSchedules = schedules.filter((s) => s.status === ScheduleStatus.Draft)
+  const finalizedSchedules = schedules.filter((s) => s.status === ScheduleStatus.Finalized)
 
   const stats = [
     {
       name: 'Total Employees',
-      value: employees?.length ?? 0,
+      value: employees.length,
       icon: Users,
       color: 'bg-blue-500',
     },
@@ -175,6 +187,147 @@ function Dashboard() {
           </div>
         </Link>
       </div>
+    </div>
+  )
+}
+
+// Employee sees a simpler dashboard focused on their schedules and preferences
+function EmployeeDashboard({ 
+  schedules,
+}: { 
+  schedules: { id: string; name: string; weekStartDate: string; status: ScheduleStatus }[]
+}) {
+  const openForPreferences = schedules.filter(
+    (s) => s.status === ScheduleStatus.OpenForPreferences
+  )
+  const finalizedSchedules = schedules.filter(
+    (s) => s.status === ScheduleStatus.Finalized
+  )
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">My Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          View your schedules and submit shift preferences
+        </p>
+      </div>
+
+      {/* Open for Preferences - Priority Section */}
+      {openForPreferences.length > 0 && (
+        <div className="card border-2 border-primary-200 bg-primary-50/50">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary-100">
+              <HandHeart className="h-5 w-5 text-primary-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Submit Your Preferences</h2>
+              <p className="text-sm text-gray-600">
+                These schedules are open for preference submission
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {openForPreferences.map((schedule) => (
+              <Link
+                key={schedule.id}
+                to="/schedules/$scheduleId"
+                params={{ scheduleId: schedule.id }}
+                className="flex items-center justify-between p-4 bg-white rounded-lg border border-primary-200 hover:border-primary-300 hover:shadow-sm transition-all"
+              >
+                <div>
+                  <h3 className="font-medium text-gray-900">{schedule.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    Week of {format(new Date(schedule.weekStartDate), 'MMM d, yyyy')}
+                  </p>
+                </div>
+                <span className="text-sm font-medium text-primary-600">
+                  Submit preferences →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats for Employee */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-green-500">
+              <CalendarDays className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Open for Preferences</p>
+              <p className="text-2xl font-semibold text-gray-900">{openForPreferences.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-purple-500">
+              <CheckCircle className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Published Schedules</p>
+              <p className="text-2xl font-semibold text-gray-900">{finalizedSchedules.length}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Published Schedules */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Published Schedules</h2>
+          <Link to="/schedules" className="text-sm text-primary-600 hover:text-primary-700">
+            View all →
+          </Link>
+        </div>
+        {finalizedSchedules.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4 text-center">
+            No published schedules yet. Check back later!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {finalizedSchedules.slice(0, 5).map((schedule) => (
+              <Link
+                key={schedule.id}
+                to="/schedules/$scheduleId"
+                params={{ scheduleId: schedule.id }}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900">{schedule.name}</h3>
+                    <p className="text-xs text-gray-500">
+                      {format(new Date(schedule.weekStartDate), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+                <StatusBadge status={schedule.status} />
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Action */}
+      <Link
+        to="/schedules"
+        className="card hover:border-primary-300 hover:shadow-md transition-all group"
+      >
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
+            <Calendar className="h-6 w-6 text-green-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">View All Schedules</h3>
+            <p className="text-sm text-gray-500">See all schedules and your shift assignments</p>
+          </div>
+        </div>
+      </Link>
     </div>
   )
 }

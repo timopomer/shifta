@@ -64,4 +64,12 @@
   .badge-purple {
     @apply bg-purple-100 text-purple-800;
   }
+
+  .badge-red {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
 }

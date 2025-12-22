@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Plus, Pencil, Trash2, Users, UserCheck } from 'lucide-react'
@@ -14,6 +14,7 @@ import {
   EmptyState,
   PageLoader,
 } from '@/components'
+import { useCurrentUser } from '@/context'
 import { CreateEmployeeRequest, EmployeeResponse } from '@/api'
 import clsx from 'clsx'
 
@@ -29,6 +30,7 @@ interface EmployeeFormData {
 }
 
 function EmployeesPage() {
+  const { isManager, isLoading: userLoading } = useCurrentUser()
   const { data: employees, isLoading } = useEmployees()
   const createEmployee = useCreateEmployee()
   const updateEmployee = useUpdateEmployee()
@@ -37,6 +39,11 @@ function EmployeesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<EmployeeResponse | null>(null)
   const [deletingEmployee, setDeletingEmployee] = useState<EmployeeResponse | null>(null)
+
+  // Redirect non-managers to dashboard
+  if (!userLoading && !isManager) {
+    return <Navigate to="/" />
+  }
 
   const {
     register,
@@ -94,7 +101,7 @@ function EmployeesPage() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || userLoading) {
     return <PageLoader />
   }
 
