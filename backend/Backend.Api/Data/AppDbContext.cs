@@ -14,6 +14,9 @@ public class AppDbContext : DbContext
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<EmployeePreference> EmployeePreferences => Set<EmployeePreference>();
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
+    public DbSet<ManagerEmployee> ManagerEmployees => Set<ManagerEmployee>();
+    public DbSet<ShiftRequest> ShiftRequests => Set<ShiftRequest>();
+    public DbSet<TimeOffRequest> TimeOffRequests => Set<TimeOffRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +71,47 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.ShiftId).IsUnique();
             entity.HasIndex(e => e.EmployeeId);
+        });
+
+        // ManagerEmployee configuration (many-to-many)
+        modelBuilder.Entity<ManagerEmployee>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ManagerId);
+            entity.HasIndex(e => e.EmployeeId);
+            entity.HasIndex(e => new { e.ManagerId, e.EmployeeId }).IsUnique();
+        });
+
+        // ShiftRequest configuration
+        modelBuilder.Entity<ShiftRequest>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.RequestType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+            entity.Property(e => e.Note).HasMaxLength(500);
+            entity.Property(e => e.ReviewNote).HasMaxLength(500);
+            entity.HasIndex(e => e.EmployeeId);
+            entity.HasIndex(e => e.ShiftId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => new { e.EmployeeId, e.ShiftId }).IsUnique();
+        });
+
+        // TimeOffRequest configuration
+        modelBuilder.Entity<TimeOffRequest>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+            entity.Property(e => e.Reason).HasMaxLength(500);
+            entity.Property(e => e.ReviewNote).HasMaxLength(500);
+            entity.HasIndex(e => e.EmployeeId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => new { e.StartDate, e.EndDate });
         });
     }
 }

@@ -19,7 +19,7 @@ import { useCurrentUser } from '@/context'
 import { CreateScheduleRequest, ScheduleResponse, ScheduleStatus } from '@/api'
 import clsx from 'clsx'
 
-export const Route = createFileRoute('/schedules')({
+export const Route = createFileRoute('/schedules/')({
   component: SchedulesPage,
 })
 

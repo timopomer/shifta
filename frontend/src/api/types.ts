@@ -15,6 +15,17 @@ export enum PreferenceType {
   Unavailable = 'Unavailable',
 }
 
+export enum RequestStatus {
+  Pending = 'Pending',
+  Approved = 'Approved',
+  Rejected = 'Rejected',
+}
+
+export enum ShiftRequestType {
+  WantToWork = 'WantToWork',
+  DoNotWantToWork = 'DoNotWantToWork',
+}
+
 // Employee DTOs
 export interface CreateEmployeeRequest {
   name: string
@@ -114,6 +125,102 @@ export interface PreferenceResponse {
   periodEnd: string | null
   isHard: boolean
   createdAt: string
+}
+
+// Manager-Employee DTOs
+export interface CreateManagerEmployeeRequest {
+  managerId: string
+  employeeId: string
+}
+
+export interface ManagerEmployeeResponse {
+  id: string
+  managerId: string
+  employeeId: string
+  managerName: string
+  employeeName: string
+  createdAt: string
+}
+
+export interface EmployeeBasicInfo {
+  id: string
+  name: string
+  email: string
+}
+
+export interface ManagerWithEmployeesResponse {
+  managerId: string
+  managerName: string
+  employees: EmployeeBasicInfo[]
+}
+
+export interface EmployeeWithManagersResponse {
+  employeeId: string
+  employeeName: string
+  managers: EmployeeBasicInfo[]
+}
+
+// Shift Request DTOs
+export interface CreateShiftRequestRequest {
+  employeeId: string
+  shiftId: string
+  requestType: ShiftRequestType
+  note?: string | null
+}
+
+export interface ReviewShiftRequestRequest {
+  status: RequestStatus
+  reviewNote?: string | null
+}
+
+export interface ShiftRequestResponse {
+  id: string
+  employeeId: string
+  employeeName: string
+  shiftId: string
+  shiftName: string
+  shiftStartTime: string
+  shiftEndTime: string
+  scheduleId: string
+  scheduleName: string
+  requestType: ShiftRequestType
+  status: RequestStatus
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  reviewedById: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  reviewNote: string | null
+}
+
+// Time Off Request DTOs
+export interface CreateTimeOffRequestRequest {
+  employeeId: string
+  startDate: string
+  endDate: string
+  reason?: string | null
+}
+
+export interface ReviewTimeOffRequestRequest {
+  status: RequestStatus
+  reviewNote?: string | null
+}
+
+export interface TimeOffRequestResponse {
+  id: string
+  employeeId: string
+  employeeName: string
+  startDate: string
+  endDate: string
+  status: RequestStatus
+  reason: string | null
+  createdAt: string
+  updatedAt: string
+  reviewedById: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  reviewNote: string | null
 }
 
 // API Error Response

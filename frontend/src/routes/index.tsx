@@ -1,11 +1,37 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Calendar, Users, Clock, CheckCircle, CalendarDays, HandHeart } from 'lucide-react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import {
+  Calendar,
+  Users,
+  Clock,
+  CheckCircle,
+  CalendarDays,
+  HandHeart,
+  Briefcase,
+  CalendarOff,
+  ThumbsUp,
+  ThumbsDown,
+  AlertCircle,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useSchedules } from '@/hooks'
 import { useEmployees } from '@/hooks'
-import { ScheduleStatus } from '@/api'
-import { StatusBadge, PageLoader } from '@/components'
+import {
+  useShiftRequestsByEmployee,
+  useTimeOffRequestsByEmployee,
+  useCreateTimeOffRequest,
+  useDeleteShiftRequest,
+  useDeleteTimeOffRequest,
+  usePendingShiftRequestsByManager,
+  usePendingTimeOffRequestsByManager,
+} from '@/hooks'
+import { ScheduleStatus, RequestStatus, ShiftRequestType } from '@/api'
+import { StatusBadge, PageLoader, Modal, ConfirmDialog } from '@/components'
 import { useCurrentUser } from '@/context'
 import { format } from 'date-fns'
+import clsx from 'clsx'
 
 export const Route = createFileRoute('/')({
   component: Dashboard,
@@ -36,9 +62,14 @@ function ManagerDashboard({
   schedules: { id: string; name: string; weekStartDate: string; status: ScheduleStatus }[]
   employees: { id: string; name: string }[]
 }) {
+  const { currentUser } = useCurrentUser()
+  const { data: pendingShiftRequests } = usePendingShiftRequestsByManager(currentUser?.id)
+  const { data: pendingTimeOffRequests } = usePendingTimeOffRequestsByManager(currentUser?.id)
+  
   const activeSchedules = schedules.filter((s) => s.status !== ScheduleStatus.Archived)
   const draftSchedules = schedules.filter((s) => s.status === ScheduleStatus.Draft)
-  const finalizedSchedules = schedules.filter((s) => s.status === ScheduleStatus.Finalized)
+
+  const totalPendingRequests = (pendingShiftRequests?.length ?? 0) + (pendingTimeOffRequests?.length ?? 0)
 
   const stats = [
     {
@@ -60,10 +91,10 @@ function ManagerDashboard({
       color: 'bg-yellow-500',
     },
     {
-      name: 'Finalized',
-      value: finalizedSchedules.length,
-      icon: CheckCircle,
-      color: 'bg-purple-500',
+      name: 'Pending Requests',
+      value: totalPendingRequests,
+      icon: AlertCircle,
+      color: totalPendingRequests > 0 ? 'bg-orange-500' : 'bg-gray-400',
     },
   ]
 
@@ -92,6 +123,89 @@ function ManagerDashboard({
           </div>
         ))}
       </div>
+
+      {/* Pending Requests Alert */}
+      {totalPendingRequests > 0 && (
+        <div className="card border-2 border-orange-200 bg-orange-50/50">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-orange-100">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Pending Requests</h2>
+              <p className="text-sm text-gray-600">
+                You have {totalPendingRequests} request{totalPendingRequests !== 1 ? 's' : ''} waiting for your review
+              </p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Pending Shift Requests */}
+            {pendingShiftRequests && pendingShiftRequests.length > 0 && (
+              <div className="bg-white rounded-lg border border-orange-200 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Briefcase className="h-4 w-4 text-blue-600" />
+                  <h3 className="font-medium text-gray-900">Shift Requests ({pendingShiftRequests.length})</h3>
+                </div>
+                <div className="space-y-2">
+                  {pendingShiftRequests.slice(0, 3).map((request) => (
+                    <Link
+                      key={request.id}
+                      to="/schedules/$scheduleId"
+                      params={{ scheduleId: request.scheduleId }}
+                      className="flex items-center justify-between p-2 rounded hover:bg-gray-50 transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{request.employeeName}</p>
+                        <p className="text-xs text-gray-500">
+                          {request.requestType === ShiftRequestType.WantToWork ? 'Wants' : "Doesn't want"} {request.shiftName}
+                        </p>
+                      </div>
+                      <span className="text-xs text-primary-600">Review →</span>
+                    </Link>
+                  ))}
+                  {pendingShiftRequests.length > 3 && (
+                    <p className="text-xs text-gray-500 text-center pt-2">
+                      +{pendingShiftRequests.length - 3} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Time Off Requests */}
+            {pendingTimeOffRequests && pendingTimeOffRequests.length > 0 && (
+              <div className="bg-white rounded-lg border border-orange-200 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CalendarOff className="h-4 w-4 text-orange-600" />
+                  <h3 className="font-medium text-gray-900">Time Off Requests ({pendingTimeOffRequests.length})</h3>
+                </div>
+                <div className="space-y-2">
+                  {pendingTimeOffRequests.slice(0, 3).map((request) => (
+                    <div
+                      key={request.id}
+                      className="flex items-center justify-between p-2 rounded bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{request.employeeName}</p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(request.startDate), 'MMM d')} – {format(new Date(request.endDate), 'MMM d')}
+                        </p>
+                      </div>
+                      <span className="badge badge-yellow">Pending</span>
+                    </div>
+                  ))}
+                  {pendingTimeOffRequests.length > 3 && (
+                    <p className="text-xs text-gray-500 text-center pt-2">
+                      +{pendingTimeOffRequests.length - 3} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Schedules */}
       <div className="card">
@@ -191,12 +305,37 @@ function ManagerDashboard({
   )
 }
 
+interface TimeOffFormData {
+  startDate: string
+  endDate: string
+  reason: string
+}
+
 // Employee sees a simpler dashboard focused on their schedules and preferences
 function EmployeeDashboard({ 
   schedules,
 }: { 
   schedules: { id: string; name: string; weekStartDate: string; status: ScheduleStatus }[]
 }) {
+  const { currentUser } = useCurrentUser()
+  const { data: shiftRequests, isLoading: shiftRequestsLoading } = useShiftRequestsByEmployee(currentUser?.id)
+  const { data: timeOffRequests, isLoading: timeOffRequestsLoading } = useTimeOffRequestsByEmployee(currentUser?.id)
+  
+  const createTimeOffRequest = useCreateTimeOffRequest()
+  const deleteShiftRequest = useDeleteShiftRequest()
+  const deleteTimeOffRequest = useDeleteTimeOffRequest()
+  
+  const [isTimeOffModalOpen, setIsTimeOffModalOpen] = useState(false)
+  const [deletingShiftRequest, setDeletingShiftRequest] = useState<string | null>(null)
+  const [deletingTimeOffRequest, setDeletingTimeOffRequest] = useState<string | null>(null)
+  
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<TimeOffFormData>()
+
   const openForPreferences = schedules.filter(
     (s) => s.status === ScheduleStatus.OpenForPreferences
   )
@@ -204,12 +343,52 @@ function EmployeeDashboard({
     (s) => s.status === ScheduleStatus.Finalized
   )
 
+  const pendingShiftRequests = shiftRequests?.filter(r => r.status === RequestStatus.Pending) ?? []
+  const pendingTimeOffRequests = timeOffRequests?.filter(r => r.status === RequestStatus.Pending) ?? []
+
+  const onSubmitTimeOff = async (data: TimeOffFormData) => {
+    if (!currentUser) return
+    await createTimeOffRequest.mutateAsync({
+      employeeId: currentUser.id,
+      startDate: new Date(data.startDate).toISOString(),
+      endDate: new Date(data.endDate).toISOString(),
+      reason: data.reason || null,
+    })
+    setIsTimeOffModalOpen(false)
+    reset()
+  }
+
+  const handleDeleteShiftRequest = async () => {
+    if (deletingShiftRequest) {
+      await deleteShiftRequest.mutateAsync(deletingShiftRequest)
+      setDeletingShiftRequest(null)
+    }
+  }
+
+  const handleDeleteTimeOffRequest = async () => {
+    if (deletingTimeOffRequest) {
+      await deleteTimeOffRequest.mutateAsync(deletingTimeOffRequest)
+      setDeletingTimeOffRequest(null)
+    }
+  }
+
+  const getStatusBadge = (status: RequestStatus) => {
+    switch (status) {
+      case RequestStatus.Pending:
+        return <span className="badge badge-yellow">Pending</span>
+      case RequestStatus.Approved:
+        return <span className="badge badge-green">Approved</span>
+      case RequestStatus.Rejected:
+        return <span className="badge badge-red">Rejected</span>
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">
-          View your schedules and submit shift preferences
+          View your schedules, requests, and submit shift preferences
         </p>
       </div>
 
@@ -223,7 +402,7 @@ function EmployeeDashboard({
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Submit Your Preferences</h2>
               <p className="text-sm text-gray-600">
-                These schedules are open for preference submission
+                These schedules are open – click to claim shifts you'd like to work
               </p>
             </div>
           </div>
@@ -250,8 +429,168 @@ function EmployeeDashboard({
         </div>
       )}
 
+      {/* My Requests Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Shift Requests */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <Briefcase className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">My Shift Requests</h2>
+            </div>
+            {pendingShiftRequests.length > 0 && (
+              <span className="badge badge-blue">{pendingShiftRequests.length} pending</span>
+            )}
+          </div>
+          
+          {shiftRequestsLoading ? (
+            <div className="py-8 flex justify-center">
+              <div className="animate-spin h-6 w-6 border-2 border-primary-600 border-t-transparent rounded-full" />
+            </div>
+          ) : !shiftRequests || shiftRequests.length === 0 ? (
+            <div className="py-8 text-center">
+              <Briefcase className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No shift requests yet.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Go to a schedule to request shifts you'd like to work
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {shiftRequests.slice(0, 10).map((request) => (
+                <div
+                  key={request.id}
+                  className={clsx(
+                    "p-3 rounded-lg border",
+                    request.status === RequestStatus.Approved && "bg-green-50 border-green-200",
+                    request.status === RequestStatus.Rejected && "bg-red-50 border-red-200",
+                    request.status === RequestStatus.Pending && "bg-gray-50 border-gray-200"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {request.requestType === ShiftRequestType.WantToWork ? (
+                          <ThumbsUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        ) : (
+                          <ThumbsDown className="h-4 w-4 text-red-600 flex-shrink-0" />
+                        )}
+                        <span className="font-medium text-gray-900 truncate">{request.shiftName}</span>
+                        {getStatusBadge(request.status)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {format(new Date(request.shiftStartTime), 'EEE, MMM d • h:mm a')}
+                      </p>
+                      <p className="text-xs text-gray-400">{request.scheduleName}</p>
+                      {request.note && (
+                        <p className="text-xs text-gray-600 mt-1 italic">"{request.note}"</p>
+                      )}
+                      {request.reviewNote && (
+                        <p className="text-xs text-primary-600 mt-1">
+                          Manager: {request.reviewNote}
+                        </p>
+                      )}
+                    </div>
+                    {request.status === RequestStatus.Pending && (
+                      <button
+                        onClick={() => setDeletingShiftRequest(request.id)}
+                        className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Time Off Requests */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-orange-100">
+                <CalendarOff className="h-5 w-5 text-orange-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Time Off Requests</h2>
+            </div>
+            <button
+              onClick={() => setIsTimeOffModalOpen(true)}
+              className="btn btn-sm btn-primary"
+            >
+              <Plus className="h-4 w-4" />
+              Request Time Off
+            </button>
+          </div>
+          
+          {timeOffRequestsLoading ? (
+            <div className="py-8 flex justify-center">
+              <div className="animate-spin h-6 w-6 border-2 border-primary-600 border-t-transparent rounded-full" />
+            </div>
+          ) : !timeOffRequests || timeOffRequests.length === 0 ? (
+            <div className="py-8 text-center">
+              <CalendarOff className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No time off requests.</p>
+              <button
+                onClick={() => setIsTimeOffModalOpen(true)}
+                className="text-sm text-primary-600 hover:text-primary-700 mt-2"
+              >
+                Request time off →
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {timeOffRequests.slice(0, 10).map((request) => (
+                <div
+                  key={request.id}
+                  className={clsx(
+                    "p-3 rounded-lg border",
+                    request.status === RequestStatus.Approved && "bg-green-50 border-green-200",
+                    request.status === RequestStatus.Rejected && "bg-red-50 border-red-200",
+                    request.status === RequestStatus.Pending && "bg-gray-50 border-gray-200"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900">
+                          {format(new Date(request.startDate), 'MMM d')} – {format(new Date(request.endDate), 'MMM d, yyyy')}
+                        </span>
+                        {getStatusBadge(request.status)}
+                      </div>
+                      {request.reason && (
+                        <p className="text-xs text-gray-600 mt-1">Reason: {request.reason}</p>
+                      )}
+                      {request.reviewNote && (
+                        <p className="text-xs text-primary-600 mt-1">
+                          Manager: {request.reviewNote}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        Requested {format(new Date(request.createdAt), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                    {request.status === RequestStatus.Pending && (
+                      <button
+                        onClick={() => setDeletingTimeOffRequest(request.id)}
+                        className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Stats for Employee */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-lg bg-green-500">
@@ -271,6 +610,28 @@ function EmployeeDashboard({
             <div>
               <p className="text-sm text-gray-500">Published Schedules</p>
               <p className="text-2xl font-semibold text-gray-900">{finalizedSchedules.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-blue-500">
+              <Briefcase className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Pending Shift Requests</p>
+              <p className="text-2xl font-semibold text-gray-900">{pendingShiftRequests.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-orange-500">
+              <CalendarOff className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Pending Time Off</p>
+              <p className="text-2xl font-semibold text-gray-900">{pendingTimeOffRequests.length}</p>
             </div>
           </div>
         </div>
@@ -328,6 +689,102 @@ function EmployeeDashboard({
           </div>
         </div>
       </Link>
+
+      {/* Time Off Request Modal */}
+      <Modal
+        isOpen={isTimeOffModalOpen}
+        onClose={() => {
+          setIsTimeOffModalOpen(false)
+          reset()
+        }}
+        title="Request Time Off"
+      >
+        <form onSubmit={handleSubmit(onSubmitTimeOff)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="startDate" className="label">
+                Start Date
+              </label>
+              <input
+                id="startDate"
+                type="date"
+                className={clsx('input', errors.startDate && 'border-red-500')}
+                {...register('startDate', { required: 'Start date is required' })}
+              />
+              {errors.startDate && (
+                <p className="mt-1 text-sm text-red-500">{errors.startDate.message}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="endDate" className="label">
+                End Date
+              </label>
+              <input
+                id="endDate"
+                type="date"
+                className={clsx('input', errors.endDate && 'border-red-500')}
+                {...register('endDate', { required: 'End date is required' })}
+              />
+              {errors.endDate && (
+                <p className="mt-1 text-sm text-red-500">{errors.endDate.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="reason" className="label">
+              Reason (optional)
+            </label>
+            <textarea
+              id="reason"
+              rows={3}
+              className="input"
+              placeholder="e.g., Family vacation, medical appointment"
+              {...register('reason')}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setIsTimeOffModalOpen(false)
+                reset()
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={createTimeOffRequest.isPending}
+            >
+              {createTimeOffRequest.isPending ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Shift Request Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingShiftRequest}
+        onClose={() => setDeletingShiftRequest(null)}
+        onConfirm={handleDeleteShiftRequest}
+        title="Cancel Shift Request"
+        message="Are you sure you want to cancel this shift request? This action cannot be undone."
+        isLoading={deleteShiftRequest.isPending}
+      />
+
+      {/* Delete Time Off Request Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deletingTimeOffRequest}
+        onClose={() => setDeletingTimeOffRequest(null)}
+        onConfirm={handleDeleteTimeOffRequest}
+        title="Cancel Time Off Request"
+        message="Are you sure you want to cancel this time off request? This action cannot be undone."
+        isLoading={deleteTimeOffRequest.isPending}
+      />
     </div>
   )
 }

@@ -319,6 +319,123 @@ public static class DemoDataSeeder
 
         context.EmployeePreferences.AddRange(preferences);
 
+        // Create manager-employee relationships
+        // Morgan Bailey (index 4) is the manager
+        var morganId = employees[4].Id;
+        var managerEmployees = new List<ManagerEmployee>();
+        
+        // Assign all non-manager employees to Morgan
+        for (int i = 0; i < employees.Count; i++)
+        {
+            if (i != 4) // Skip Morgan (the manager)
+            {
+                managerEmployees.Add(new ManagerEmployee
+                {
+                    Id = Guid.NewGuid(),
+                    ManagerId = morganId,
+                    EmployeeId = employees[i].Id,
+                    CreatedAt = now
+                });
+            }
+        }
+
+        context.ManagerEmployees.AddRange(managerEmployees);
+
+        // Create some shift requests for next week's schedule
+        var shiftRequests = new List<ShiftRequest>
+        {
+            // Alex wants to work Monday morning
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[0].Id, // Alex
+                ShiftId = nextWeekShifts[0].Id, // Monday Morning
+                RequestType = ShiftRequestType.WantToWork,
+                Status = RequestStatus.Pending,
+                Note = "I'd love to take this shift!",
+                CreatedAt = now.AddHours(-2),
+                UpdatedAt = now.AddHours(-2)
+            },
+            // Sam doesn't want to work Saturday afternoon
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[2].Id, // Sam
+                ShiftId = nextWeekShifts[11].Id, // Saturday Afternoon
+                RequestType = ShiftRequestType.DoNotWantToWork,
+                Status = RequestStatus.Pending,
+                Note = "I have a family event that day",
+                CreatedAt = now.AddHours(-1),
+                UpdatedAt = now.AddHours(-1)
+            },
+            // Drew wants to work Thursday morning (already approved)
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[6].Id, // Drew
+                ShiftId = nextWeekShifts[6].Id, // Thursday Morning
+                RequestType = ShiftRequestType.WantToWork,
+                Status = RequestStatus.Approved,
+                Note = "This works great with my schedule",
+                CreatedAt = now.AddDays(-1),
+                UpdatedAt = now.AddHours(-12),
+                ReviewedById = morganId,
+                ReviewedAt = now.AddHours(-12),
+                ReviewNote = "Approved - Drew has been reliable on morning shifts"
+            }
+        };
+
+        context.ShiftRequests.AddRange(shiftRequests);
+
+        // Create some time off requests
+        var timeOffRequests = new List<TimeOffRequest>
+        {
+            // Taylor requesting time off next week Friday
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[3].Id, // Taylor
+                StartDate = nextMonday.AddDays(4), // Friday
+                EndDate = nextMonday.AddDays(5), // Saturday (exclusive end)
+                Status = RequestStatus.Pending,
+                Reason = "Doctor's appointment",
+                CreatedAt = now.AddHours(-3),
+                UpdatedAt = now.AddHours(-3)
+            },
+            // Riley time off already approved
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[7].Id, // Riley
+                StartDate = nextMonday.AddDays(7), // Next next Monday
+                EndDate = nextMonday.AddDays(10), // Thursday
+                Status = RequestStatus.Approved,
+                Reason = "Family vacation",
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-1),
+                ReviewedById = morganId,
+                ReviewedAt = now.AddDays(-1),
+                ReviewNote = "Enjoy your vacation!"
+            },
+            // Jordan time off request rejected
+            new()
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = employees[1].Id, // Jordan
+                StartDate = thisMonday.AddDays(2), // Wednesday of current week
+                EndDate = thisMonday.AddDays(3),
+                Status = RequestStatus.Rejected,
+                Reason = "Personal day",
+                CreatedAt = now.AddDays(-5),
+                UpdatedAt = now.AddDays(-4),
+                ReviewedById = morganId,
+                ReviewedAt = now.AddDays(-4),
+                ReviewNote = "Sorry, we're short-staffed this day"
+            }
+        };
+
+        context.TimeOffRequests.AddRange(timeOffRequests);
+
         await context.SaveChangesAsync();
     }
 }
