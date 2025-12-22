@@ -37,8 +37,8 @@ public class PreferenceTests : IAsyncLifetime
     public async Task Preference_CanBeCreatedForShift()
     {
         // Arrange
-        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var employee = new Employee { Id = Guid.NewGuid(), Name = "Alice", Email = $"alice-{Guid.NewGuid()}@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
         _context.ShiftSchedules.Add(schedule);
@@ -70,8 +70,8 @@ public class PreferenceTests : IAsyncLifetime
     public async Task Preference_CanBeUnavailablePeriod()
     {
         // Arrange
-        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var employee = new Employee { Id = Guid.NewGuid(), Name = "Alice", Email = $"alice-{Guid.NewGuid()}@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
         _context.ShiftSchedules.Add(schedule);
@@ -79,8 +79,8 @@ public class PreferenceTests : IAsyncLifetime
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
 
-        var periodStart = new DateTime(2024, 12, 25, 0, 0, 0);
-        var periodEnd = new DateTime(2024, 12, 25, 23, 59, 59);
+        var periodStart = new DateTime(2024, 12, 25, 0, 0, 0, DateTimeKind.Utc);
+        var periodEnd = new DateTime(2024, 12, 25, 23, 59, 59, DateTimeKind.Utc);
 
         // Act
         var preference = new EmployeePreference
@@ -110,10 +110,10 @@ public class PreferenceTests : IAsyncLifetime
     public async Task GetByScheduleId_ReturnsPreferencesViaShiftJoin()
     {
         // Arrange
-        var schedule1 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var schedule2 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 2", WeekStartDate = DateTime.Now.AddDays(7), Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift1 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift2 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule2.Id, Name = "Shift 2", StartTime = DateTime.Now.AddDays(7), EndTime = DateTime.Now.AddDays(7).AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule1 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule2 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 2", WeekStartDate = DateTime.UtcNow.AddDays(7), Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift1 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift2 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule2.Id, Name = "Shift 2", StartTime = DateTime.UtcNow.AddDays(7), EndTime = DateTime.UtcNow.AddDays(7).AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var employee = new Employee { Id = Guid.NewGuid(), Name = "Alice", Email = $"alice-{Guid.NewGuid()}@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
         _context.ShiftSchedules.AddRange(schedule1, schedule2);
@@ -151,9 +151,9 @@ public class PreferenceTests : IAsyncLifetime
     public async Task GetByEmployeeId_ReturnsAllEmployeePreferences()
     {
         // Arrange
-        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift1 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var shift2 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Evening", StartTime = DateTime.Now.AddHours(12), EndTime = DateTime.Now.AddHours(18), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift1 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift2 = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Evening", StartTime = DateTime.UtcNow.AddHours(12), EndTime = DateTime.UtcNow.AddHours(18), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var alice = new Employee { Id = Guid.NewGuid(), Name = "Alice", Email = $"alice-{Guid.NewGuid()}@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         var bob = new Employee { Id = Guid.NewGuid(), Name = "Bob", Email = $"bob-{Guid.NewGuid()}@example.com", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 

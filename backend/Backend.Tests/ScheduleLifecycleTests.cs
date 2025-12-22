@@ -39,7 +39,7 @@ public class ScheduleLifecycleTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23),
+            WeekStartDate = new DateTime(2024, 12, 23, 0, 0, 0, DateTimeKind.Utc),
             Status = ScheduleStatus.Draft,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -65,7 +65,7 @@ public class ScheduleLifecycleTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23),
+            WeekStartDate = new DateTime(2024, 12, 23, 0, 0, 0, DateTimeKind.Utc),
             Status = ScheduleStatus.Draft,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -79,8 +79,8 @@ public class ScheduleLifecycleTests : IAsyncLifetime
             Id = Guid.NewGuid(),
             ShiftScheduleId = schedule.Id,
             Name = "Morning",
-            StartTime = DateTime.Now,
-            EndTime = DateTime.Now.AddHours(6),
+            StartTime = DateTime.UtcNow,
+            EndTime = DateTime.UtcNow.AddHours(6),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
@@ -105,7 +105,7 @@ public class ScheduleLifecycleTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23),
+            WeekStartDate = new DateTime(2024, 12, 23, 0, 0, 0, DateTimeKind.Utc),
             Status = ScheduleStatus.OpenForPreferences,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -132,7 +132,7 @@ public class ScheduleLifecycleTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23),
+            WeekStartDate = new DateTime(2024, 12, 23, 0, 0, 0, DateTimeKind.Utc),
             Status = ScheduleStatus.Finalized,
             FinalizedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
@@ -160,9 +160,9 @@ public class ScheduleLifecycleTests : IAsyncLifetime
         var id2 = Guid.NewGuid();
         var id3 = Guid.NewGuid();
 
-        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id1, Name = "Draft 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id2, Name = "Draft 2", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id3, Name = "Open 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id1, Name = "Draft 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id2, Name = "Draft 2", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.ShiftSchedules.Add(new ShiftSchedule { Id = id3, Name = "Open 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.OpenForPreferences, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
         await _context.SaveChangesAsync();
 
         // Act

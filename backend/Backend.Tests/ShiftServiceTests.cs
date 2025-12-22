@@ -39,7 +39,7 @@ public class ShiftTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Week 1",
-            WeekStartDate = new DateTime(2024, 12, 23),
+            WeekStartDate = new DateTime(2024, 12, 23, 0, 0, 0, DateTimeKind.Utc),
             Status = ScheduleStatus.Draft,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -53,8 +53,8 @@ public class ShiftTests : IAsyncLifetime
             Id = Guid.NewGuid(),
             ShiftScheduleId = schedule.Id,
             Name = "Morning",
-            StartTime = new DateTime(2024, 12, 23, 8, 0, 0),
-            EndTime = new DateTime(2024, 12, 23, 14, 0, 0),
+            StartTime = new DateTime(2024, 12, 23, 8, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2024, 12, 23, 14, 0, 0, DateTimeKind.Utc),
             RequiredAbilities = ["bartender", "waiter"],
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -74,14 +74,14 @@ public class ShiftTests : IAsyncLifetime
     public async Task GetByScheduleId_ReturnsOnlyShiftsForThatSchedule()
     {
         // Arrange
-        var schedule1 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var schedule2 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 2", WeekStartDate = DateTime.Now.AddDays(7), Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule1 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule2 = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 2", WeekStartDate = DateTime.UtcNow.AddDays(7), Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         _context.ShiftSchedules.AddRange(schedule1, schedule2);
         await _context.SaveChangesAsync();
 
-        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1A", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1B", StartTime = DateTime.Now.AddHours(6), EndTime = DateTime.Now.AddHours(12), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
-        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule2.Id, Name = "Shift 2A", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1A", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule1.Id, Name = "Shift 1B", StartTime = DateTime.UtcNow.AddHours(6), EndTime = DateTime.UtcNow.AddHours(12), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        _context.Shifts.Add(new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule2.Id, Name = "Shift 2A", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
         await _context.SaveChangesAsync();
 
         // Act
@@ -97,11 +97,11 @@ public class ShiftTests : IAsyncLifetime
     public async Task Delete_RemovesShift()
     {
         // Arrange
-        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.Now, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var schedule = new ShiftSchedule { Id = Guid.NewGuid(), Name = "Week 1", WeekStartDate = DateTime.UtcNow, Status = ScheduleStatus.Draft, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         _context.ShiftSchedules.Add(schedule);
         await _context.SaveChangesAsync();
 
-        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.Now, EndTime = DateTime.Now.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var shift = new Shift { Id = Guid.NewGuid(), ShiftScheduleId = schedule.Id, Name = "Morning", StartTime = DateTime.UtcNow, EndTime = DateTime.UtcNow.AddHours(6), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         _context.Shifts.Add(shift);
         await _context.SaveChangesAsync();
 
