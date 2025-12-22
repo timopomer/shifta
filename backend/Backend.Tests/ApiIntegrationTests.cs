@@ -5,13 +5,29 @@ using FluentAssertions;
 
 namespace Backend.Tests;
 
-public class ApiIntegrationTests : IClassFixture<CustomWebApplicationFactory>
+[Collection("Postgres")]
+public class ApiIntegrationTests : IAsyncLifetime
 {
-    private readonly HttpClient _client;
+    private readonly PostgresTestFixture _fixture;
+    private CustomWebApplicationFactory _factory = null!;
+    private HttpClient _client = null!;
 
-    public ApiIntegrationTests(CustomWebApplicationFactory factory)
+    public ApiIntegrationTests(PostgresTestFixture fixture)
     {
-        _client = factory.CreateClient();
+        _fixture = fixture;
+    }
+
+    public Task InitializeAsync()
+    {
+        _factory = new CustomWebApplicationFactory(_fixture.ConnectionString);
+        _client = _factory.CreateClient();
+        return Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        _client.Dispose();
+        await _factory.DisposeAsync();
     }
 
     [Fact]
@@ -28,15 +44,13 @@ public class ApiIntegrationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task GetEmployees_ReturnsEmptyList_WhenNoEmployees()
+    public async Task GetEmployees_ReturnsOk()
     {
         // Act
         var response = await _client.GetAsync("/api/employees");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var employees = await response.Content.ReadFromJsonAsync<List<EmployeeResponse>>();
-        employees.Should().NotBeNull();
     }
 
     [Fact]

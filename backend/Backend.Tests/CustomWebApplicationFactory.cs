@@ -4,18 +4,17 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace Backend.Tests;
 
-public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .WithDatabase("shifta_test")
-        .WithUsername("postgres")
-        .WithPassword("postgres")
-        .Build();
+    private readonly string _connectionString;
+
+    public CustomWebApplicationFactory(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -39,8 +38,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
                 services.Remove(npgsqlDescriptor);
             }
 
-            // Add PostgreSQL with Testcontainers
-            var dataSourceBuilder = new NpgsqlDataSourceBuilder(_postgres.GetConnectionString());
+            // Add PostgreSQL with the provided connection string
+            var dataSourceBuilder = new NpgsqlDataSourceBuilder(_connectionString);
             dataSourceBuilder.EnableDynamicJson();
             var dataSource = dataSourceBuilder.Build();
 
@@ -57,16 +56,5 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         });
 
         builder.UseEnvironment("Testing");
-    }
-
-    public async Task InitializeAsync()
-    {
-        await _postgres.StartAsync();
-    }
-
-    public new async Task DisposeAsync()
-    {
-        await _postgres.DisposeAsync();
-        await base.DisposeAsync();
     }
 }
