@@ -21,14 +21,30 @@ jobs:
 
   test-backend:
     runs-on: ubuntu-latest
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build test image
-        run: docker build --target test -t backend:test ./backend
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Verify Docker is running
+        run: docker info
+
+      - name: Restore dependencies
+        run: dotnet restore
+        working-directory: ./backend
+
+      - name: Build
+        run: dotnet build --no-restore
+        working-directory: ./backend
 
       - name: Run tests
-        run: docker run --rm backend:test
+        run: dotnet test --no-build --verbosity normal
+        working-directory: ./backend
 
   publish-scheduling-backend:
     needs: [test-scheduling-backend, test-backend]
