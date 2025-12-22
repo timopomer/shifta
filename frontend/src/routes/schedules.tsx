@@ -15,6 +15,7 @@ import {
   PageLoader,
   StatusBadge,
 } from '@/components'
+import { useCurrentUser } from '@/context'
 import { CreateScheduleRequest, ScheduleResponse, ScheduleStatus } from '@/api'
 import clsx from 'clsx'
 
@@ -28,6 +29,7 @@ interface ScheduleFormData {
 }
 
 function SchedulesPage() {
+  const { isManager, isLoading: userLoading } = useCurrentUser()
   const { data: schedules, isLoading } = useSchedules()
   const createSchedule = useCreateSchedule()
   const deleteSchedule = useDeleteSchedule()
@@ -68,7 +70,7 @@ function SchedulesPage() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || userLoading) {
     return <PageLoader />
   }
 
@@ -88,13 +90,17 @@ function SchedulesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Schedules</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Create and manage your shift schedules
+            {isManager 
+              ? 'Create and manage your shift schedules'
+              : 'View schedules and submit your preferences'}
           </p>
         </div>
-        <button onClick={openCreateModal} className="btn btn-primary">
-          <Plus className="h-4 w-4" />
-          New Schedule
-        </button>
+        {isManager && (
+          <button onClick={openCreateModal} className="btn btn-primary">
+            <Plus className="h-4 w-4" />
+            New Schedule
+          </button>
+        )}
       </div>
 
       {schedules?.length === 0 ? (
@@ -102,13 +108,15 @@ function SchedulesPage() {
           <EmptyState
             icon={Calendar}
             title="No schedules yet"
-            description="Create your first schedule to start managing shifts"
-            action={
+            description={isManager 
+              ? "Create your first schedule to start managing shifts"
+              : "No schedules available. Check back later!"}
+            action={isManager && (
               <button onClick={openCreateModal} className="btn btn-primary">
                 <Plus className="h-4 w-4" />
                 Create Schedule
               </button>
-            }
+            )}
           />
         </div>
       ) : (
@@ -128,7 +136,7 @@ function SchedulesPage() {
                   <ScheduleRow
                     key={schedule.id}
                     schedule={schedule}
-                    onDelete={() => setDeletingSchedule(schedule)}
+                    onDelete={isManager ? () => setDeletingSchedule(schedule) : undefined}
                   />
                 ))}
               </div>

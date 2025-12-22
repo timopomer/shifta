@@ -42,6 +42,7 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Database=shifta;Username=postgres;Password=postgres
       - Optimizer__BaseUrl=http://scheduler:8000
+      - DEMO_MODE=true
     depends_on:
       postgres:
         condition: service_healthy

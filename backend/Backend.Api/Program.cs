@@ -42,6 +42,13 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.EnsureCreated();
+
+    // Seed demo data if DEMO_MODE is enabled
+    var demoMode = Environment.GetEnvironmentVariable("DEMO_MODE");
+    if (string.Equals(demoMode, "true", StringComparison.OrdinalIgnoreCase))
+    {
+        await DemoDataSeeder.SeedAsync(dbContext);
+    }
 }
 
 // Configure the HTTP request pipeline

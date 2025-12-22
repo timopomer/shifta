@@ -13,6 +13,8 @@ import {
   Archive,
   AlertCircle,
   Users,
+  Heart,
+  Ban,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -26,6 +28,8 @@ import {
   useDeleteShift,
   useEmployees,
   usePreferencesBySchedule,
+  useCreatePreference,
+  useDeletePreference,
 } from '@/hooks'
 import {
   Modal,
@@ -34,10 +38,13 @@ import {
   PageLoader,
   StatusBadge,
 } from '@/components'
+import { useCurrentUser } from '@/context'
 import {
   ScheduleStatus,
   CreateShiftRequest,
   ShiftResponse,
+  PreferenceType,
+  PreferenceResponse,
 } from '@/api'
 import clsx from 'clsx'
 
@@ -54,6 +61,7 @@ interface ShiftFormData {
 
 function ScheduleDetailPage() {
   const { scheduleId } = Route.useParams()
+  const { currentUser, isManager, isLoading: userLoading } = useCurrentUser()
   const { data: schedule, isLoading, error } = useSchedule(scheduleId)
   const { data: employees } = useEmployees()
   const { data: preferences } = usePreferencesBySchedule(scheduleId)
@@ -65,11 +73,14 @@ function ScheduleDetailPage() {
   const createShift = useCreateShift()
   const updateShift = useUpdateShift()
   const deleteShift = useDeleteShift()
+  const createPreference = useCreatePreference()
+  const deletePreference = useDeletePreference()
 
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false)
   const [editingShift, setEditingShift] = useState<ShiftResponse | null>(null)
   const [deletingShift, setDeletingShift] = useState<ShiftResponse | null>(null)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
+  const [preferenceInProgress, setPreferenceInProgress] = useState<string | null>(null)
 
   const {
     register,
@@ -155,7 +166,38 @@ function ScheduleDetailPage() {
     }
   }
 
-  if (isLoading) {
+  // Handle preference toggle for employees
+  const handlePreferenceToggle = async (
+    shiftId: string,
+    type: PreferenceType,
+    existingPref: PreferenceResponse | undefined
+  ) => {
+    if (!currentUser) return
+    
+    const prefKey = `${shiftId}-${type}`
+    setPreferenceInProgress(prefKey)
+    
+    try {
+      if (existingPref) {
+        // Remove preference
+        await deletePreference.mutateAsync(existingPref.id)
+      } else {
+        // Add preference
+        await createPreference.mutateAsync({
+          employeeId: currentUser.id,
+          shiftId,
+          type,
+          isHard: type === PreferenceType.Unavailable,
+          periodStart: null,
+          periodEnd: null,
+        })
+      }
+    } finally {
+      setPreferenceInProgress(null)
+    }
+  }
+
+  if (isLoading || userLoading) {
     return <PageLoader />
   }
 
@@ -179,13 +221,20 @@ function ScheduleDetailPage() {
   const employeeMap = new Map(employees?.map((e) => [e.id, e]) ?? [])
   const isDraft = schedule.status === ScheduleStatus.Draft
   const isFinalized = schedule.status === ScheduleStatus.Finalized
+  const isOpenForPreferences = schedule.status === ScheduleStatus.OpenForPreferences
+  const canSubmitPreferences = isOpenForPreferences && currentUser && !isManager
 
-  // Get preference counts per shift
+  // Get preference counts per shift (for managers)
   const preferenceCountByShift = new Map<string, number>()
   preferences?.forEach((p) => {
     const count = preferenceCountByShift.get(p.shiftId) ?? 0
     preferenceCountByShift.set(p.shiftId, count + 1)
   })
+
+  // Get current user's preferences (for employees)
+  const myPreferences = preferences?.filter(p => p.employeeId === currentUser?.id) ?? []
+  const getMyPreference = (shiftId: string, type: PreferenceType) => 
+    myPreferences.find(p => p.shiftId === shiftId && p.type === type)
 
   return (
     <div className="space-y-6">
@@ -208,17 +257,36 @@ function ScheduleDetailPage() {
               Week of {format(new Date(schedule.weekStartDate), 'MMMM d, yyyy')}
             </p>
           </div>
-          <StatusActions
-            status={schedule.status}
-            onAction={handleStatusAction}
-            isLoading={actionInProgress}
-            shiftsCount={schedule.shifts.length}
-          />
+          {isManager && (
+            <StatusActions
+              status={schedule.status}
+              onAction={handleStatusAction}
+              isLoading={actionInProgress}
+              shiftsCount={schedule.shifts.length}
+            />
+          )}
         </div>
       </div>
 
-      {/* Status Flow */}
-      <StatusFlow currentStatus={schedule.status} />
+      {/* Status Flow - only for managers */}
+      {isManager && <StatusFlow currentStatus={schedule.status} />}
+
+      {/* Employee Preference Submission Notice */}
+      {canSubmitPreferences && (
+        <div className="card border-2 border-primary-200 bg-primary-50/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary-100">
+              <Heart className="h-5 w-5 text-primary-600" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Submit Your Preferences</h2>
+              <p className="text-sm text-gray-600">
+                Click on shifts below to indicate your preferences. Mark shifts you prefer or times you're unavailable.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shifts Section */}
       <div className="card">
@@ -226,7 +294,7 @@ function ScheduleDetailPage() {
           <h2 className="text-lg font-semibold text-gray-900">
             Shifts ({schedule.shifts.length})
           </h2>
-          {isDraft && (
+          {isDraft && isManager && (
             <button onClick={openCreateShiftModal} className="btn btn-primary btn-sm">
               <Plus className="h-4 w-4" />
               Add Shift
@@ -239,12 +307,12 @@ function ScheduleDetailPage() {
             icon={Clock}
             title="No shifts yet"
             description={
-              isDraft
+              isDraft && isManager
                 ? 'Add shifts to this schedule before opening for preferences'
                 : 'This schedule has no shifts'
             }
             action={
-              isDraft && (
+              isDraft && isManager && (
                 <button onClick={openCreateShiftModal} className="btn btn-primary">
                   <Plus className="h-4 w-4" />
                   Add Shift
@@ -262,19 +330,37 @@ function ScheduleDetailPage() {
                 ? employeeMap.get(assignment.employeeId)
                 : null
               const prefCount = preferenceCountByShift.get(shift.id) ?? 0
+              
+              // Employee preference state
+              const myPreferShift = getMyPreference(shift.id, PreferenceType.PreferShift)
+              const myUnavailable = getMyPreference(shift.id, PreferenceType.Unavailable)
+              const isPrefLoading = preferenceInProgress?.startsWith(shift.id)
 
               return (
                 <div
                   key={shift.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg"
+                  className={clsx(
+                    "flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg",
+                    myPreferShift ? "bg-green-50 border border-green-200" :
+                    myUnavailable ? "bg-red-50 border border-red-200" :
+                    "bg-gray-50"
+                  )}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium text-gray-900">{shift.name}</h3>
-                      {prefCount > 0 && (
+                      {/* Manager sees preference count */}
+                      {isManager && prefCount > 0 && (
                         <span className="badge badge-blue">
                           {prefCount} preference{prefCount !== 1 ? 's' : ''}
                         </span>
+                      )}
+                      {/* Employee sees their own preference status */}
+                      {!isManager && myPreferShift && (
+                        <span className="badge badge-green">Preferred</span>
+                      )}
+                      {!isManager && myUnavailable && (
+                        <span className="badge badge-red">Unavailable</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
@@ -296,13 +382,28 @@ function ScheduleDetailPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    {/* Assignment Status */}
+                    {/* Assignment Status (for finalized schedules) */}
                     {isFinalized || schedule.status === ScheduleStatus.Archived ? (
                       assignedEmployee ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 rounded-lg">
-                          <Users className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium text-green-700">
-                            {assignedEmployee.name}
+                        <div className={clsx(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+                          assignedEmployee.id === currentUser?.id 
+                            ? "bg-primary-100 border border-primary-200"
+                            : "bg-green-100"
+                        )}>
+                          <Users className={clsx(
+                            "h-4 w-4",
+                            assignedEmployee.id === currentUser?.id 
+                              ? "text-primary-600"
+                              : "text-green-600"
+                          )} />
+                          <span className={clsx(
+                            "text-sm font-medium",
+                            assignedEmployee.id === currentUser?.id 
+                              ? "text-primary-700"
+                              : "text-green-700"
+                          )}>
+                            {assignedEmployee.id === currentUser?.id ? 'You' : assignedEmployee.name}
                           </span>
                         </div>
                       ) : (
@@ -310,8 +411,42 @@ function ScheduleDetailPage() {
                       )
                     ) : null}
 
-                    {/* Actions */}
-                    {isDraft && (
+                    {/* Preference Buttons for Employees */}
+                    {canSubmitPreferences && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handlePreferenceToggle(shift.id, PreferenceType.PreferShift, myPreferShift)}
+                          disabled={isPrefLoading || !!myUnavailable}
+                          className={clsx(
+                            "p-2 rounded transition-colors",
+                            myPreferShift 
+                              ? "bg-green-100 text-green-600 hover:bg-green-200" 
+                              : "hover:bg-gray-200 text-gray-400 hover:text-green-600",
+                            (isPrefLoading || myUnavailable) && "opacity-50 cursor-not-allowed"
+                          )}
+                          title={myPreferShift ? "Remove preference" : "I prefer this shift"}
+                        >
+                          {myPreferShift ? <Heart className="h-5 w-5 fill-current" /> : <Heart className="h-5 w-5" />}
+                        </button>
+                        <button
+                          onClick={() => handlePreferenceToggle(shift.id, PreferenceType.Unavailable, myUnavailable)}
+                          disabled={isPrefLoading || !!myPreferShift}
+                          className={clsx(
+                            "p-2 rounded transition-colors",
+                            myUnavailable 
+                              ? "bg-red-100 text-red-600 hover:bg-red-200" 
+                              : "hover:bg-gray-200 text-gray-400 hover:text-red-600",
+                            (isPrefLoading || myPreferShift) && "opacity-50 cursor-not-allowed"
+                          )}
+                          title={myUnavailable ? "Remove unavailable" : "I'm unavailable"}
+                        >
+                          <Ban className="h-5 w-5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Manager Edit/Delete Actions */}
+                    {isDraft && isManager && (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => openEditShiftModal(shift)}
