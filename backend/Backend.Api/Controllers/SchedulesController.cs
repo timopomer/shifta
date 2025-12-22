@@ -245,13 +245,16 @@ public class SchedulesController : ControllerBase
         List<Shift> shifts,
         Dictionary<Guid, List<EmployeePreference>> employeePreferences)
     {
+        // Create a lookup for shift times
+        var shiftLookup = shifts.ToDictionary(s => s.Id);
+        
         var employeeDtos = employees.Select(e => new EmployeeDto
         {
             Id = e.Id.ToString(),
             Name = e.Name,
             Abilities = e.Abilities,
             Preferences = employeePreferences.TryGetValue(e.Id, out var prefs)
-                ? prefs.Select(MapPreference).ToList()
+                ? prefs.Select(p => MapPreference(p, shiftLookup)).ToList()
                 : []
         }).ToList();
 
@@ -272,7 +275,7 @@ public class SchedulesController : ControllerBase
         };
     }
 
-    private static Preferences MapPreference(EmployeePreference pref)
+    private static Preferences MapPreference(EmployeePreference pref, Dictionary<Guid, Shift> shiftLookup)
     {
         var preference = new Preferences();
 
@@ -290,9 +293,23 @@ public class SchedulesController : ControllerBase
                 preference.AdditionalProperties["is_hard"] = pref.IsHard;
                 break;
             case PreferenceType.Unavailable:
+                // For shift-specific unavailable preferences, use the shift's times
+                DateTime? start = pref.PeriodStart;
+                DateTime? end = pref.PeriodEnd;
+                
+                if (!start.HasValue || !end.HasValue)
+                {
+                    // Try to get times from the linked shift
+                    if (shiftLookup.TryGetValue(pref.ShiftId, out var shift))
+                    {
+                        start = shift.StartTime;
+                        end = shift.EndTime;
+                    }
+                }
+                
                 preference.AdditionalProperties["type"] = "unavailable_period";
-                preference.AdditionalProperties["start"] = pref.PeriodStart?.ToString("o");
-                preference.AdditionalProperties["end"] = pref.PeriodEnd?.ToString("o");
+                preference.AdditionalProperties["start"] = start?.ToString("o");
+                preference.AdditionalProperties["end"] = end?.ToString("o");
                 preference.AdditionalProperties["is_hard"] = pref.IsHard;
                 break;
             default:

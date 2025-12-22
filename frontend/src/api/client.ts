@@ -12,6 +12,16 @@ import type {
   CreatePreferenceRequest,
   PreferenceResponse,
   ScheduleStatus,
+  CreateManagerEmployeeRequest,
+  ManagerEmployeeResponse,
+  ManagerWithEmployeesResponse,
+  EmployeeWithManagersResponse,
+  CreateShiftRequestRequest,
+  ReviewShiftRequestRequest,
+  ShiftRequestResponse,
+  CreateTimeOffRequestRequest,
+  ReviewTimeOffRequestRequest,
+  TimeOffRequestResponse,
 } from './types'
 
 const api = axios.create({
@@ -147,6 +157,122 @@ export const preferencesApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/preferences/${id}`)
+  },
+}
+
+// Manager-Employees API
+export const managerEmployeesApi = {
+  getAll: async (): Promise<ManagerEmployeeResponse[]> => {
+    const { data } = await api.get<ManagerEmployeeResponse[]>('/manager-employees')
+    return data
+  },
+
+  getByManager: async (managerId: string): Promise<ManagerWithEmployeesResponse> => {
+    const { data } = await api.get<ManagerWithEmployeesResponse>(`/manager-employees/by-manager/${managerId}`)
+    return data
+  },
+
+  getByEmployee: async (employeeId: string): Promise<EmployeeWithManagersResponse> => {
+    const { data } = await api.get<EmployeeWithManagersResponse>(`/manager-employees/by-employee/${employeeId}`)
+    return data
+  },
+
+  create: async (request: CreateManagerEmployeeRequest): Promise<ManagerEmployeeResponse> => {
+    const { data } = await api.post<ManagerEmployeeResponse>('/manager-employees', request)
+    return data
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/manager-employees/${id}`)
+  },
+}
+
+// Shift Requests API
+export const shiftRequestsApi = {
+  getAll: async (): Promise<ShiftRequestResponse[]> => {
+    const { data } = await api.get<ShiftRequestResponse[]>('/shift-requests')
+    return data
+  },
+
+  getById: async (id: string): Promise<ShiftRequestResponse> => {
+    const { data } = await api.get<ShiftRequestResponse>(`/shift-requests/${id}`)
+    return data
+  },
+
+  getByEmployee: async (employeeId: string): Promise<ShiftRequestResponse[]> => {
+    const { data } = await api.get<ShiftRequestResponse[]>(`/shift-requests/by-employee/${employeeId}`)
+    return data
+  },
+
+  getBySchedule: async (scheduleId: string): Promise<ShiftRequestResponse[]> => {
+    const { data } = await api.get<ShiftRequestResponse[]>(`/shift-requests/by-schedule/${scheduleId}`)
+    return data
+  },
+
+  getByManager: async (managerId: string): Promise<ShiftRequestResponse[]> => {
+    const { data } = await api.get<ShiftRequestResponse[]>(`/shift-requests/by-manager/${managerId}`)
+    return data
+  },
+
+  getPendingByManager: async (managerId: string): Promise<ShiftRequestResponse[]> => {
+    const { data } = await api.get<ShiftRequestResponse[]>(`/shift-requests/pending/by-manager/${managerId}`)
+    return data
+  },
+
+  create: async (request: CreateShiftRequestRequest): Promise<ShiftRequestResponse> => {
+    const { data } = await api.post<ShiftRequestResponse>('/shift-requests', request)
+    return data
+  },
+
+  review: async (id: string, reviewerId: string, request: ReviewShiftRequestRequest): Promise<ShiftRequestResponse> => {
+    const { data } = await api.put<ShiftRequestResponse>(`/shift-requests/${id}/review?reviewerId=${reviewerId}`, request)
+    return data
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/shift-requests/${id}`)
+  },
+}
+
+// Time Off Requests API
+export const timeOffRequestsApi = {
+  getAll: async (): Promise<TimeOffRequestResponse[]> => {
+    const { data } = await api.get<TimeOffRequestResponse[]>('/time-off-requests')
+    return data
+  },
+
+  getById: async (id: string): Promise<TimeOffRequestResponse> => {
+    const { data } = await api.get<TimeOffRequestResponse>(`/time-off-requests/${id}`)
+    return data
+  },
+
+  getByEmployee: async (employeeId: string): Promise<TimeOffRequestResponse[]> => {
+    const { data } = await api.get<TimeOffRequestResponse[]>(`/time-off-requests/by-employee/${employeeId}`)
+    return data
+  },
+
+  getByManager: async (managerId: string): Promise<TimeOffRequestResponse[]> => {
+    const { data } = await api.get<TimeOffRequestResponse[]>(`/time-off-requests/by-manager/${managerId}`)
+    return data
+  },
+
+  getPendingByManager: async (managerId: string): Promise<TimeOffRequestResponse[]> => {
+    const { data } = await api.get<TimeOffRequestResponse[]>(`/time-off-requests/pending/by-manager/${managerId}`)
+    return data
+  },
+
+  create: async (request: CreateTimeOffRequestRequest): Promise<TimeOffRequestResponse> => {
+    const { data } = await api.post<TimeOffRequestResponse>('/time-off-requests', request)
+    return data
+  },
+
+  review: async (id: string, reviewerId: string, request: ReviewTimeOffRequestRequest): Promise<TimeOffRequestResponse> => {
+    const { data } = await api.put<TimeOffRequestResponse>(`/time-off-requests/${id}/review?reviewerId=${reviewerId}`, request)
+    return data
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/time-off-requests/${id}`)
   },
 }
 
