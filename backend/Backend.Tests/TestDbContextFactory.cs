@@ -14,31 +14,38 @@ public class PostgresTestFixture : IAsyncLifetime
         .WithPassword("postgres")
         .Build();
 
+    private NpgsqlDataSource? _dataSource;
+    private DbContextOptions<AppDbContext>? _options;
+
     public string ConnectionString => _postgres.GetConnectionString();
 
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
+        
+        // Create a single data source and options to be reused
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(ConnectionString);
+        dataSourceBuilder.EnableDynamicJson();
+        _dataSource = dataSourceBuilder.Build();
+
+        _options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(_dataSource)
+            .Options;
+
+        // Ensure database schema is created once
+        using var context = new AppDbContext(_options);
+        context.Database.EnsureCreated();
     }
 
     public async Task DisposeAsync()
     {
+        _dataSource?.Dispose();
         await _postgres.DisposeAsync();
     }
 
     public AppDbContext CreateDbContext()
     {
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(ConnectionString);
-        dataSourceBuilder.EnableDynamicJson();
-        var dataSource = dataSourceBuilder.Build();
-
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(dataSource)
-            .Options;
-
-        var context = new AppDbContext(options);
-        context.Database.EnsureCreated();
-        return context;
+        return new AppDbContext(_options!);
     }
 }
 
