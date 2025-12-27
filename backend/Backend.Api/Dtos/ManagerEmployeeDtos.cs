@@ -37,3 +37,4 @@ public record EmployeeBasicInfo
     public required string Email { get; init; }
 }
 
+
