@@ -1,0 +1,162 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "docker-compose: Start PostgreSQL",
+            "type": "shell",
+            "command": "docker-compose up -d postgres",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "focus": false
+            },
+            "runOptions": {
+                "runOn": "default"
+            }
+        },
+        {
+            "label": "stop: .NET Backend",
+            "type": "shell",
+            "command": "taskkill /F /IM Backend.Api.exe 2>nul || echo Process not found",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                }
+            }
+        },
+        {
+            "label": "build: .NET Backend",
+            "type": "process",
+            "dependsOn": "stop: .NET Backend",
+            "dependsOrder": "sequence",
+            "command": "${env:ProgramFiles}\\dotnet\\dotnet.exe",
+            "args": [
+                "build",
+                "${workspaceFolder}\\backend\\Backend.Api\\Backend.Api.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "run: .NET Backend",
+            "type": "process",
+            "dependsOn": "build: .NET Backend",
+            "dependsOrder": "sequence",
+            "command": "${env:ProgramFiles}\\dotnet\\dotnet.exe",
+            "args": [
+                "run",
+                "--project",
+                "${workspaceFolder}\\backend\\Backend.Api\\Backend.Api.csproj",
+                "--no-build"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            },
+            "isBackground": true,
+            "runOptions": {
+                "runOn": "default"
+            },
+            "windows": {
+                "options": {
+                    "env": {
+                        "ASPNETCORE_ENVIRONMENT": "Development",
+                        "DEMO_MODE": "true"
+                    }
+                }
+            }
+        },
+        {
+            "label": "run: Frontend",
+            "type": "shell",
+            "command": "pnpm run dev",
+            "options": {
+                "cwd": "${workspaceFolder}/frontend",
+                "env": {
+                    "NODE_ENV": "development"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            },
+            "isBackground": true,
+            "runOptions": {
+                "runOn": "default"
+            }
+        },
+        {
+            "label": "install: Python Dependencies",
+            "type": "shell",
+            "command": "python -m pip install -e \".[dev]\"",
+            "options": {
+                "cwd": "${workspaceFolder}/scheduling-backend",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/scheduling-backend/src"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "run: Python Backend",
+            "type": "shell",
+            "dependsOn": "install: Python Dependencies",
+            "dependsOrder": "sequence",
+            "command": "python -m uvicorn scheduling.api.app:app --host 0.0.0.0 --port 8000 --reload",
+            "options": {
+                "cwd": "${workspaceFolder}/scheduling-backend",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/scheduling-backend/src"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": false
+            },
+            "isBackground": true,
+            "runOptions": {
+                "runOn": "default"
+            }
+        },
+        {
+            "label": "start: All Services",
+            "dependsOn": [
+                "docker-compose: Start PostgreSQL",
+                "run: .NET Backend",
+                "run: Python Backend",
+                "run: Frontend"
+            ],
+            "dependsOrder": "parallel",
+            "problemMatcher": []
+        }
+    ]
+}
+

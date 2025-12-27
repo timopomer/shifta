@@ -5,11 +5,37 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Launch Chrome (Frontend)",
             "type": "chrome",
             "request": "launch",
-            "name": "Launch Chrome against localhost",
-            "url": "http://localhost:8080",
-            "webRoot": "${workspaceFolder}"
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}/frontend"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch All Services",
+            "configurations": [],
+            "preLaunchTask": "start: All Services",
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 1
+            }
+        },
+        {
+            "name": "Launch All + Chrome",
+            "configurations": [
+                "Launch Chrome (Frontend)"
+            ],
+            "preLaunchTask": "start: All Services",
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 2
+            }
         }
     ]
 }
